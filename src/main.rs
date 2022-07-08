@@ -13,11 +13,16 @@ mod vm;
 
 fn main() {
     let arena = typed_arena::Arena::new();
-    let source = r#"print(
-    1
+    let source = r#"
+x = 100;
+print(
+    x
     - 2
     * 3
-)"#;
+);
+text = "foobar";
+print(text);
+"#;
     println!("source = {}", source);
     let parser = parser::parser(&arena);
     match parser.parse(source) {

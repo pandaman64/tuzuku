@@ -38,4 +38,7 @@ pub(crate) enum AstBody<'arena> {
     Mul(Ast<'arena>, Ast<'arena>),
     Div(Ast<'arena>, Ast<'arena>),
     Print(Ast<'arena>),
+    Stmts(Vec<Ast<'arena>>),
+    Assign(String, Ast<'arena>),
+    Var(String),
 }

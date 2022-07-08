@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{collections::HashMap, io::Write};
 
 use crate::{
     opcode::{Chunk, OpCode},
@@ -7,10 +7,16 @@ use crate::{
 
 use num_traits::FromPrimitive;
 
+#[derive(Default)]
+struct Global {
+    definitions: HashMap<String, Value>,
+}
+
 pub(crate) struct Vm<'stdout> {
     chunk: Chunk,
     ip: usize,
     stack: Vec<Value>,
+    global: Global,
     stdout: &'stdout mut (dyn Write + 'stdout),
 }
 
@@ -20,6 +26,7 @@ impl<'stdout> Vm<'stdout> {
             chunk,
             ip: 0,
             stack: vec![],
+            global: Global::default(),
             stdout,
         }
     }
@@ -76,6 +83,30 @@ impl<'stdout> Vm<'stdout> {
             Some(OpCode::Sub) => self.binop(|lhs, rhs| lhs - rhs),
             Some(OpCode::Mul) => self.binop(|lhs, rhs| lhs * rhs),
             Some(OpCode::Div) => self.binop(|lhs, rhs| lhs / rhs),
+            Some(OpCode::GetGlobal) => {
+                let index = self.chunk.code()[self.ip + 1];
+                let value = &self.chunk.constants()[usize::from(index)];
+                match value {
+                    Value::String(name) => {
+                        let value = self.global.definitions[name].clone();
+                        self.stack.push(value);
+                        self.ip += 2;
+                    }
+                    _ => unreachable!("compile error: OP_GET_GLOBAL takes a string constant"),
+                }
+            }
+            Some(OpCode::SetGlobal) => {
+                let index = self.chunk.code()[self.ip + 1];
+                let value = &self.chunk.constants()[usize::from(index)];
+                match value {
+                    Value::String(name) => {
+                        let value = self.stack.pop().unwrap();
+                        self.global.definitions.insert(name.clone(), value);
+                        self.ip += 2;
+                    }
+                    _ => unreachable!("compile error: OP_SET_GLOBAL takes a string constant"),
+                }
+            }
         }
     }
 }

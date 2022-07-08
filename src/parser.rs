@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use chumsky::{
     prelude::{end, filter, just, Simple},
-    text::{self, keyword, TextParser},
+    text::{ident, int, keyword, TextParser},
     Parser,
 };
 use typed_arena::Arena;
@@ -69,14 +69,21 @@ pub(crate) fn parser<'arena>(
         })
         .padded();
 
-    let number = text::int(10)
+    let number = int(10)
         .map_with_span(|literal: String, span: Range<usize>| Ast {
             body: arena.alloc(AstBody::Number(literal.parse().unwrap())),
             span: span.into(),
         })
         .padded();
 
-    let primitive = simple_string_literal.or(number);
+    let var = ident()
+        .map_with_span(|ident, span: Range<usize>| Ast {
+            body: arena.alloc(AstBody::Var(ident)),
+            span: span.into(),
+        })
+        .padded();
+
+    let primitive = simple_string_literal.or(number).or(var);
 
     let factor = primitive
         .then(just('*').or(just('/')).then(primitive).repeated())
@@ -109,11 +116,32 @@ pub(crate) fn parser<'arena>(
     let print_stmt = keyword("print")
         .padded()
         .ignore_then(term.delimited_by(just('('), just(')')).padded())
+        .then_ignore(just(';'))
         .map_with_span(|expr, span: Range<usize>| Ast {
             body: arena.alloc(AstBody::Print(expr)),
             span: span.into(),
         })
         .padded();
 
-    print_stmt.then_ignore(end())
+    let assign_stmt = ident()
+        .padded()
+        .then_ignore(just('=').padded())
+        .then(term)
+        .then_ignore(just(';'))
+        .map_with_span(|(ident, expr), span: Range<usize>| Ast {
+            body: arena.alloc(AstBody::Assign(ident, expr)),
+            span: span.into(),
+        })
+        .padded();
+
+    let stmt = print_stmt.or(assign_stmt);
+
+    let stmts = stmt.repeated();
+
+    stmts
+        .map_with_span(|stmts, span: Range<usize>| Ast {
+            body: arena.alloc(AstBody::Stmts(stmts)),
+            span: span.into(),
+        })
+        .then_ignore(end())
 }

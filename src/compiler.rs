@@ -42,6 +42,22 @@ impl Compiler {
             AstBody::Sub(lhs, rhs) => self.push_binop(OpCode::Sub, *lhs, *rhs, mapper),
             AstBody::Mul(lhs, rhs) => self.push_binop(OpCode::Mul, *lhs, *rhs, mapper),
             AstBody::Div(lhs, rhs) => self.push_binop(OpCode::Div, *lhs, *rhs, mapper),
+            AstBody::Stmts(stmts) => {
+                for stmt in stmts.iter() {
+                    self.push(*stmt, mapper);
+                }
+            }
+            AstBody::Assign(ident, expr) => {
+                self.push(*expr, mapper);
+                let index = self.builder.push_constant(Value::String(ident.clone()));
+                self.builder.push_op(OpCode::SetGlobal, start_line);
+                self.builder.push_u8(index, start_line);
+            }
+            AstBody::Var(ident) => {
+                let index = self.builder.push_constant(Value::String(ident.clone()));
+                self.builder.push_op(OpCode::GetGlobal, start_line);
+                self.builder.push_u8(index, start_line);
+            }
         }
     }
 }

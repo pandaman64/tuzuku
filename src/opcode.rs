@@ -19,6 +19,9 @@ pub(crate) enum OpCode {
     Sub,
     Mul,
     Div,
+    // Global
+    GetGlobal,
+    SetGlobal,
 }
 
 pub(crate) struct Chunk {
@@ -37,19 +40,19 @@ impl Chunk {
     }
 
     fn print_simple(&self, name: &str) -> usize {
-        eprintln!(" {:-12} |", name);
+        eprintln!(" {:-14} |", name);
         1
     }
 
-    fn print_constant(&self, offset: usize) -> usize {
+    fn print_constant(&self, offset: usize, name: &str) -> usize {
         let index = self.code[offset + 1];
         let constant = &self.constants[usize::from(index)];
-        eprintln!(" {:-12} | {}", "OP_CONSTANT", constant.display());
+        eprintln!(" {:-14} | {}", name, constant.display());
         2
     }
 
     pub(crate) fn print(&self) {
-        eprintln!(" offset | line | {:-12} | constants ", "opcode");
+        eprintln!(" offset | line | {:-14} | constants ", "opcode");
         let mut offset = 0;
         while offset < self.code.len() {
             eprint!(" {:06} | {:04} |", offset, self.lines[offset]);
@@ -61,11 +64,13 @@ impl Chunk {
                 Some(OpCode::False) => self.print_simple("OP_FALSE"),
                 Some(OpCode::Pop) => self.print_simple("OP_POP"),
                 Some(OpCode::Print) => self.print_simple("OP_PRINT"),
-                Some(OpCode::Constant) => self.print_constant(offset),
+                Some(OpCode::Constant) => self.print_constant(offset, "OP_CONSTANT"),
                 Some(OpCode::Add) => self.print_simple("OP_ADD"),
                 Some(OpCode::Sub) => self.print_simple("OP_SUB"),
                 Some(OpCode::Mul) => self.print_simple("OP_MUL"),
                 Some(OpCode::Div) => self.print_simple("OP_DIV"),
+                Some(OpCode::GetGlobal) => self.print_constant(offset, "OP_GET_GLOBAL"),
+                Some(OpCode::SetGlobal) => self.print_constant(offset, "OP_SET_GLOBAL"),
             }
         }
     }
