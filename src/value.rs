@@ -11,10 +11,10 @@ pub(crate) enum Value {
 impl Value {
     pub(crate) fn display(&self) -> impl Display + '_ {
         match self {
-            Value::Nil => "nil".to_string(),
-            Value::Boolean(b) => b.to_string(),
+            Value::Nil => "<nil>".to_string(),
+            Value::Boolean(b) => format!("<{}>", b),
             Value::Number(n) => n.to_string(),
-            Value::String(s) => format!("\"{}\"", s),
+            Value::String(s) => s.clone(),
         }
     }
 }
