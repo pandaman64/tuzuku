@@ -1,0 +1,7 @@
+---
+source: src/insta.rs
+assertion_line: 41
+expression: "String::from_utf8_lossy(&stdout)"
+---
+foobar
+

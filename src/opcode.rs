@@ -1,3 +1,5 @@
+use std::io;
+
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive as _;
 
@@ -43,49 +45,50 @@ impl Chunk {
         &self.constants
     }
 
-    fn print_simple(&self, name: &str) -> usize {
-        eprintln!(" {:-14} |", name);
-        1
+    fn print_simple(&self, writer: &mut dyn io::Write, name: &str) -> io::Result<usize> {
+        writeln!(writer, " {:-14} |", name)?;
+        Ok(1)
     }
 
-    fn print_constant(&self, offset: usize, name: &str) -> usize {
+    fn print_constant(&self, writer: &mut dyn io::Write, offset: usize, name: &str) -> io::Result<usize> {
         let index = self.code[offset + 1];
         let constant = &self.constants[usize::from(index)];
-        eprintln!(" {:-14} | {}", name, constant.display());
-        2
+        writeln!(writer, " {:-14} | {}", name, constant.display())?;
+        Ok(2)
     }
 
-    fn print_call(&self, offset: usize) -> usize {
+    fn print_call(&self, writer: &mut dyn io::Write, offset: usize) -> io::Result<usize> {
         let arguments_len = self.code[offset + 1];
-        eprintln!(" {:-14} | {}", "OP_CALL", arguments_len);
-        2
+        writeln!(writer, " {:-14} | {}", "OP_CALL", arguments_len)?;
+        Ok(2)
     }
 
-    pub(crate) fn print(&self) {
-        eprintln!(" offset | line | {:-14} | constants ", "opcode");
+    pub(crate) fn write(&self, writer: &mut dyn io::Write) -> io::Result<()> {
+        writeln!(writer, " offset | line | {:-14} | constants", "opcode")?;
         let mut offset = 0;
         while offset < self.code.len() {
-            eprint!(" {:06} | {:04} |", offset, self.lines[offset]);
+            write!(writer, " {:06} | {:04} |", offset, self.lines[offset])?;
 
             offset += match OpCode::from_u8(self.code[offset]) {
-                None => self.print_simple("OP_UNKNOWN"),
-                Some(OpCode::Nil) => self.print_simple("OP_NIL"),
-                Some(OpCode::True) => self.print_simple("OP_TRUE"),
-                Some(OpCode::False) => self.print_simple("OP_FALSE"),
-                Some(OpCode::Pop) => self.print_simple("OP_POP"),
-                Some(OpCode::Print) => self.print_simple("OP_PRINT"),
-                Some(OpCode::Call) => self.print_call(offset),
-                Some(OpCode::Constant) => self.print_constant(offset, "OP_CONSTANT"),
-                Some(OpCode::Add) => self.print_simple("OP_ADD"),
-                Some(OpCode::Sub) => self.print_simple("OP_SUB"),
-                Some(OpCode::Mul) => self.print_simple("OP_MUL"),
-                Some(OpCode::Div) => self.print_simple("OP_DIV"),
-                Some(OpCode::GetGlobal) => self.print_constant(offset, "OP_GET_GLOBAL"),
-                Some(OpCode::SetGlobal) => self.print_constant(offset, "OP_SET_GLOBAL"),
-                Some(OpCode::GetLocal) => self.print_constant(offset, "OP_GET_LOCAL"),
-                Some(OpCode::SetLocal) => self.print_constant(offset, "OP_SET_LOCAL"),
+                None => self.print_simple(writer, "OP_UNKNOWN")?,
+                Some(OpCode::Nil) => self.print_simple(writer, "OP_NIL")?,
+                Some(OpCode::True) => self.print_simple(writer, "OP_TRUE")?,
+                Some(OpCode::False) => self.print_simple(writer, "OP_FALSE")?,
+                Some(OpCode::Pop) => self.print_simple(writer, "OP_POP")?,
+                Some(OpCode::Print) => self.print_simple(writer, "OP_PRINT")?,
+                Some(OpCode::Call) => self.print_call(writer, offset)?,
+                Some(OpCode::Constant) => self.print_constant(writer, offset, "OP_CONSTANT")?,
+                Some(OpCode::Add) => self.print_simple(writer, "OP_ADD")?,
+                Some(OpCode::Sub) => self.print_simple(writer, "OP_SUB")?,
+                Some(OpCode::Mul) => self.print_simple(writer, "OP_MUL")?,
+                Some(OpCode::Div) => self.print_simple(writer, "OP_DIV")?,
+                Some(OpCode::GetGlobal) => self.print_constant(writer, offset, "OP_GET_GLOBAL")?,
+                Some(OpCode::SetGlobal) => self.print_constant(writer, offset, "OP_SET_GLOBAL")?,
+                Some(OpCode::GetLocal) => self.print_constant(writer, offset, "OP_GET_LOCAL")?,
+                Some(OpCode::SetLocal) => self.print_constant(writer, offset, "OP_SET_LOCAL")?,
             }
         }
+        Ok(())
     }
 }
 

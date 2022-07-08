@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 
 use chumsky::prelude::Simple;
 
@@ -7,12 +7,17 @@ use crate::{driver::Driver, opcode::Chunk, parser::LineMapper};
 mod ast;
 mod compiler;
 mod driver;
+mod insta;
 mod opcode;
 mod parser;
 mod value;
 mod vm;
 
-fn print_errors(errors: Vec<Simple<char>>, mapper: &LineMapper) {
+fn print_chunk(_: &str, chunk: &Chunk, writer: &mut dyn Write) -> io::Result<()> {
+    chunk.write(writer)
+}
+
+fn print_errors(_: &str, errors: Vec<Simple<char>>, mapper: &LineMapper) {
     for error in errors.iter() {
         eprintln!(
             "error at line {}: {}",
@@ -46,10 +51,11 @@ print(text);
 
     let mut stdout = io::stdout().lock();
     let mut driver = Driver {
+        file_name: "inline".into(),
         source,
         run: true,
         stdout: &mut stdout,
-        chunk_callback: Chunk::print,
+        chunk_callback: print_chunk,
         error_callback: print_errors,
     };
     driver.run();
