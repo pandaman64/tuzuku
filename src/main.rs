@@ -14,10 +14,13 @@ mod vm;
 fn main() {
     let arena = typed_arena::Arena::new();
     let source = r#"
-fun greet(name) {
+fun greet(first, last) {
     print("hello ");
-    print(name);
+    print(first);
+    print(" ");
+    print(last);
 }
+greet("John", "Doe");
 
 x = 100;
 print(
@@ -30,9 +33,9 @@ print(text);
 "#;
     println!("source = {}", source);
     let parser = parser::parser(&arena);
+    let mapper = LineMapper::new(source);
     match parser.parse(source) {
         Ok(ast) => {
-            let mapper = LineMapper::new(source);
             let compiled = compiler::compile(ast, &mapper);
             compiled.print();
 
@@ -44,7 +47,11 @@ print(text);
         }
         Err(errors) => {
             for error in errors.iter() {
-                eprintln!("error: {}", error)
+                eprintln!(
+                    "error at line {}: {}",
+                    mapper.find(error.span().start),
+                    error
+                )
             }
         }
     }

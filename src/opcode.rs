@@ -14,6 +14,7 @@ pub(crate) enum OpCode {
     // Consumers
     Print,
     Pop,
+    Call,
     // Binary operators
     Add,
     Sub,
@@ -54,6 +55,12 @@ impl Chunk {
         2
     }
 
+    fn print_call(&self, offset: usize) -> usize {
+        let arguments_len = self.code[offset + 1];
+        eprintln!(" {:-14} | {}", "OP_CALL", arguments_len);
+        2
+    }
+
     pub(crate) fn print(&self) {
         eprintln!(" offset | line | {:-14} | constants ", "opcode");
         let mut offset = 0;
@@ -67,6 +74,7 @@ impl Chunk {
                 Some(OpCode::False) => self.print_simple("OP_FALSE"),
                 Some(OpCode::Pop) => self.print_simple("OP_POP"),
                 Some(OpCode::Print) => self.print_simple("OP_PRINT"),
+                Some(OpCode::Call) => self.print_call(offset),
                 Some(OpCode::Constant) => self.print_constant(offset, "OP_CONSTANT"),
                 Some(OpCode::Add) => self.print_simple("OP_ADD"),
                 Some(OpCode::Sub) => self.print_simple("OP_SUB"),

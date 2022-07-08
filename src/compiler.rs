@@ -165,6 +165,19 @@ impl<'parent> Compiler<'parent> {
                 self.builder.push_u8(fun_const_index, start_line);
                 self.emit_set(ident, start_line);
             }
+            AstBody::Call { callee, arguments } => {
+                self.push(*callee, mapper);
+                for argument in arguments.iter() {
+                    self.push(*argument, mapper);
+                }
+                self.builder.push_op(OpCode::Call, start_line);
+                self.builder
+                    .push_u8(u8::try_from(arguments.len()).unwrap(), start_line);
+            }
+            AstBody::ExprStmt { expr } => {
+                self.push(*expr, mapper);
+                self.builder.push_op(OpCode::Pop, start_line);
+            }
         }
     }
 }

@@ -67,13 +67,22 @@ impl<'stdout> Vm<'stdout> {
                 self.ip += 1;
             }
             Some(OpCode::Pop) => {
-                self.stack.pop();
+                self.stack.pop().unwrap();
                 self.ip += 1;
             }
             Some(OpCode::Print) => {
                 let value = self.stack.pop().unwrap();
                 writeln!(self.stdout, "{}", value.display()).unwrap();
                 self.ip += 1;
+            }
+            Some(OpCode::Call) => {
+                let arguments_len = self.chunk.code()[self.ip + 1];
+                // TODO: actually call function
+                // function itself is popped by OP_POP
+                for _ in 0..arguments_len {
+                    self.stack.pop();
+                }
+                self.ip += 2;
             }
             Some(OpCode::Constant) => {
                 let index = self.chunk.code()[self.ip + 1];

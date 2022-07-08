@@ -8,9 +8,18 @@ pub(crate) struct Span {
 
 impl From<Range<usize>> for Span {
     fn from(span: Range<usize>) -> Self {
-        Span {
+        Self {
             start: span.start,
             end: span.end,
+        }
+    }
+}
+
+impl Span {
+    pub(crate) fn merge(self, other: Self) -> Self {
+        Self {
+            start: self.start.min(other.start),
+            end: self.end.max(other.end),
         }
     }
 }
@@ -23,10 +32,7 @@ pub(crate) struct Ast<'arena> {
 
 impl<'arena> Ast<'arena> {
     pub(crate) fn merge_span(self, other: Self) -> Span {
-        Span {
-            start: self.span.start.min(other.span.start),
-            end: self.span.end.max(other.span.end),
-        }
+        self.span.merge(other.span)
     }
 }
 
@@ -45,5 +51,12 @@ pub(crate) enum AstBody<'arena> {
         ident: String,
         parameters: Vec<String>,
         body: Vec<Ast<'arena>>,
+    },
+    Call {
+        callee: Ast<'arena>,
+        arguments: Vec<Ast<'arena>>,
+    },
+    ExprStmt {
+        expr: Ast<'arena>,
     },
 }
