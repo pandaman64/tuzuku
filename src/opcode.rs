@@ -50,7 +50,12 @@ impl Chunk {
         Ok(1)
     }
 
-    fn print_constant(&self, writer: &mut dyn io::Write, offset: usize, name: &str) -> io::Result<usize> {
+    fn print_constant(
+        &self,
+        writer: &mut dyn io::Write,
+        offset: usize,
+        name: &str,
+    ) -> io::Result<usize> {
         let index = self.code[offset + 1];
         let constant = &self.constants[usize::from(index)];
         writeln!(writer, " {:-14} | {}", name, constant.display())?;

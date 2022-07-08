@@ -5,13 +5,16 @@ use std::io::{self, Write};
 
 use chumsky::prelude::Simple;
 
-use crate::{parser::LineMapper, driver::Driver, opcode::Chunk};
+use crate::{driver::Driver, opcode::Chunk, parser::LineMapper};
 
 fn assert_chunk_print(test_name: &str, chunk: &Chunk, _: &mut dyn Write) -> io::Result<()> {
     let mut chunk_print = vec![];
     let _ = chunk.write(&mut chunk_print);
 
-    insta::assert_snapshot!(format!("{}_chunk_print", test_name), String::from_utf8_lossy(&chunk_print));
+    insta::assert_snapshot!(
+        format!("{}_chunk_print", test_name),
+        String::from_utf8_lossy(&chunk_print)
+    );
 
     Ok(())
 }
@@ -22,14 +25,11 @@ fn assert_error_messages(test_name: &str, errors: Vec<Simple<char>>, _: &LineMap
     insta::assert_yaml_snapshot!(format!("{}_error_messages", test_name), error_messages);
 }
 
-#[test]
-fn test_print_string() {
-    let test_name = "test_print_string";
-    let source = r#"print("foobar");"#.to_string();
+fn run_test(test_name: &str, source: &str) {
     let mut stdout = vec![];
     let mut driver = Driver {
         file_name: test_name.into(),
-        source,
+        source: source.into(),
         run: true,
         stdout: &mut stdout,
         chunk_callback: assert_chunk_print,
@@ -38,24 +38,18 @@ fn test_print_string() {
 
     driver.run();
 
-    insta::assert_snapshot!(format!("{}_stdout", test_name), String::from_utf8_lossy(&stdout));
+    insta::assert_snapshot!(
+        format!("{}_stdout", test_name),
+        String::from_utf8_lossy(&stdout)
+    );
+}
+
+#[test]
+fn test_print_string() {
+    run_test("test_print_string", r#"print("foobar");"#);
 }
 
 #[test]
 fn test_print_int() {
-    let test_name = "test_print_int";
-    let source = r#"print(42);"#.to_string();
-    let mut stdout = vec![];
-    let mut driver = Driver {
-        file_name: test_name.into(),
-        source,
-        run: true,
-        stdout: &mut stdout,
-        chunk_callback: assert_chunk_print,
-        error_callback: assert_error_messages,
-    };
-
-    driver.run();
-
-    insta::assert_snapshot!(format!("{}_stdout", test_name), String::from_utf8_lossy(&stdout));
+    run_test("test_print_int", r#"print(42);"#);
 }
