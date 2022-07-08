@@ -21,7 +21,7 @@ impl Compiler {
     }
 
     fn push(&mut self, ast: Ast<'_>) {
-        match ast {
+        match ast.body {
             AstBody::Number(number) => {
                 let index = self.builder.push_constant(Value::Number(*number));
                 self.builder.push_op(OpCode::Constant, 1);
@@ -33,13 +33,13 @@ impl Compiler {
                 self.builder.push_u8(index, 1);
             }
             AstBody::Print(expr) => {
-                self.push(expr);
+                self.push(*expr);
                 self.builder.push_op(OpCode::Print, 1);
             }
-            AstBody::Add(lhs, rhs) => self.push_binop(OpCode::Add, lhs, rhs, 1),
-            AstBody::Sub(lhs, rhs) => self.push_binop(OpCode::Sub, lhs, rhs, 1),
-            AstBody::Mul(lhs, rhs) => self.push_binop(OpCode::Mul, lhs, rhs, 1),
-            AstBody::Div(lhs, rhs) => self.push_binop(OpCode::Div, lhs, rhs, 1),
+            AstBody::Add(lhs, rhs) => self.push_binop(OpCode::Add, *lhs, *rhs, 1),
+            AstBody::Sub(lhs, rhs) => self.push_binop(OpCode::Sub, *lhs, *rhs, 1),
+            AstBody::Mul(lhs, rhs) => self.push_binop(OpCode::Mul, *lhs, *rhs, 1),
+            AstBody::Div(lhs, rhs) => self.push_binop(OpCode::Div, *lhs, *rhs, 1),
         }
     }
 }
