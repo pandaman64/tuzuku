@@ -6,12 +6,19 @@ use crate::value::Value;
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive)]
 pub(crate) enum OpCode {
+    // Constants
     Nil,
     True,
     False,
     Constant,
+    // Consumers
     Print,
     Pop,
+    // Binary operators
+    Add,
+    Sub,
+    Mul,
+    Div,
 }
 
 pub(crate) struct Chunk {
@@ -55,6 +62,10 @@ impl Chunk {
                 Some(OpCode::Pop) => self.print_simple("OP_POP"),
                 Some(OpCode::Print) => self.print_simple("OP_PRINT"),
                 Some(OpCode::Constant) => self.print_constant(offset),
+                Some(OpCode::Add) => self.print_simple("OP_ADD"),
+                Some(OpCode::Sub) => self.print_simple("OP_SUB"),
+                Some(OpCode::Mul) => self.print_simple("OP_MUL"),
+                Some(OpCode::Div) => self.print_simple("OP_DIV"),
             }
         }
     }

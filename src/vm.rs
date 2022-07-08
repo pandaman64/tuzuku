@@ -28,8 +28,22 @@ impl<'stdout> Vm<'stdout> {
         self.ip >= self.chunk.code().len()
     }
 
+    fn binop(&mut self, op: fn(f64, f64) -> f64) {
+        let rhs = self.stack.pop().unwrap();
+        let lhs = self.stack.pop().unwrap();
+
+        match (lhs, rhs) {
+            (Value::Number(lhs), Value::Number(rhs)) => {
+                self.stack.push(Value::Number(op(lhs, rhs)));
+                self.ip += 1;
+            }
+            _ => panic!("bad type"),
+        }
+    }
+
     pub(crate) fn step(&mut self) {
-        match OpCode::from_u8(self.chunk.code()[self.ip]) {
+        let opcode = OpCode::from_u8(self.chunk.code()[self.ip]);
+        match opcode {
             None => panic!("unknown opcode"),
             Some(OpCode::Nil) => {
                 self.stack.push(Value::Nil);
@@ -58,6 +72,10 @@ impl<'stdout> Vm<'stdout> {
                 self.stack.push(value);
                 self.ip += 2;
             }
+            Some(OpCode::Add) => self.binop(|lhs, rhs| lhs + rhs),
+            Some(OpCode::Sub) => self.binop(|lhs, rhs| lhs - rhs),
+            Some(OpCode::Mul) => self.binop(|lhs, rhs| lhs * rhs),
+            Some(OpCode::Div) => self.binop(|lhs, rhs| lhs / rhs),
         }
     }
 }

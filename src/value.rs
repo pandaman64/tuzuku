@@ -1,9 +1,10 @@
 use std::fmt::Display;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) enum Value {
     Nil,
     Boolean(bool),
+    Number(f64),
     String(String),
 }
 
@@ -12,6 +13,7 @@ impl Value {
         match self {
             Value::Nil => "nil".to_string(),
             Value::Boolean(b) => b.to_string(),
+            Value::Number(n) => n.to_string(),
             Value::String(s) => format!("\"{}\"", s),
         }
     }

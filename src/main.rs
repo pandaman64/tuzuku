@@ -10,9 +10,11 @@ mod value;
 mod vm;
 
 fn main() {
-    let source = r#"print("foobar")"#;
+    let arena = typed_arena::Arena::new();
+    let source = r#"print(1 - 2 * 3)"#;
     println!("source = {}", source);
-    match parser::parse().parse(source) {
+    let parser = parser::parser(&arena);
+    match parser.parse(source) {
         Ok(ast) => {
             let compiled = compiler::compile(ast);
             compiled.print();
