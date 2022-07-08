@@ -21,6 +21,14 @@ pub(crate) struct Chunk {
 }
 
 impl Chunk {
+    pub(crate) fn code(&self) -> &[u8] {
+        &self.code
+    }
+
+    pub(crate) fn constants(&self) -> &[Value] {
+        &self.constants
+    }
+
     fn print_simple(&self, name: &str) -> usize {
         eprintln!(" {:-12} |", name);
         1
