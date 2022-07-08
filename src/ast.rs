@@ -31,6 +31,7 @@ impl<'arena> Ast<'arena> {
 }
 
 pub(crate) enum AstBody<'arena> {
+    Root(Vec<Ast<'arena>>),
     Number(f64),
     String(String),
     Add(Ast<'arena>, Ast<'arena>),
@@ -38,7 +39,11 @@ pub(crate) enum AstBody<'arena> {
     Mul(Ast<'arena>, Ast<'arena>),
     Div(Ast<'arena>, Ast<'arena>),
     Print(Ast<'arena>),
-    Stmts(Vec<Ast<'arena>>),
     Assign(String, Ast<'arena>),
     Var(String),
+    FunDecl {
+        ident: String,
+        parameters: Vec<String>,
+        body: Vec<Ast<'arena>>,
+    },
 }

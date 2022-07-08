@@ -136,12 +136,36 @@ pub(crate) fn parser<'arena>(
 
     let stmt = print_stmt.or(assign_stmt);
 
-    let stmts = stmt.repeated();
-
-    stmts
-        .map_with_span(|stmts, span: Range<usize>| Ast {
-            body: arena.alloc(AstBody::Stmts(stmts)),
+    let fun_decl = keyword("fun")
+        .ignore_then(ident().padded())
+        .then(
+            ident()
+                .separated_by(just(',').padded())
+                .allow_trailing()
+                .delimited_by(just('('), just(')'))
+                .padded(),
+        )
+        .then(stmt.clone().repeated().delimited_by(just('{'), just('}')))
+        .map_with_span(|((ident, parameters), body), span: Range<usize>| Ast {
+            body: arena.alloc(AstBody::FunDecl {
+                ident,
+                parameters,
+                body,
+            }),
             span: span.into(),
         })
-        .then_ignore(end())
+        .padded();
+
+    let decl = fun_decl;
+
+    let toplevel = stmt.or(decl);
+
+    let program = toplevel
+        .repeated()
+        .map_with_span(|toplevel, span: Range<usize>| Ast {
+            body: arena.alloc(AstBody::Root(toplevel)),
+            span: span.into(),
+        });
+
+    program.then_ignore(end())
 }

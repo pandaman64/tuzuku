@@ -14,6 +14,11 @@ mod vm;
 fn main() {
     let arena = typed_arena::Arena::new();
     let source = r#"
+fun greet(name) {
+    print("hello ");
+    print(name);
+}
+
 x = 100;
 print(
     x

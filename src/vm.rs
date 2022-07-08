@@ -15,6 +15,7 @@ struct Global {
 pub(crate) struct Vm<'stdout> {
     chunk: Chunk,
     ip: usize,
+    fp: usize,
     stack: Vec<Value>,
     global: Global,
     stdout: &'stdout mut (dyn Write + 'stdout),
@@ -25,6 +26,7 @@ impl<'stdout> Vm<'stdout> {
         Vm {
             chunk,
             ip: 0,
+            fp: 0,
             stack: vec![],
             global: Global::default(),
             stdout,
@@ -106,6 +108,16 @@ impl<'stdout> Vm<'stdout> {
                     }
                     _ => unreachable!("compile error: OP_SET_GLOBAL takes a string constant"),
                 }
+            }
+            Some(OpCode::GetLocal) => {
+                let offset = self.chunk.code()[self.ip + 1];
+                let value = self.stack[self.fp + usize::from(offset)].clone();
+                self.stack.push(value);
+            }
+            Some(OpCode::SetLocal) => {
+                let offset = self.chunk.code()[self.ip + 1];
+                let value = self.stack.pop().unwrap();
+                self.stack[self.fp + usize::from(offset)] = value;
             }
         }
     }

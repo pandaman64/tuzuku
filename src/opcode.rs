@@ -22,6 +22,9 @@ pub(crate) enum OpCode {
     // Global
     GetGlobal,
     SetGlobal,
+    // Local
+    GetLocal,
+    SetLocal,
 }
 
 pub(crate) struct Chunk {
@@ -71,6 +74,8 @@ impl Chunk {
                 Some(OpCode::Div) => self.print_simple("OP_DIV"),
                 Some(OpCode::GetGlobal) => self.print_constant(offset, "OP_GET_GLOBAL"),
                 Some(OpCode::SetGlobal) => self.print_constant(offset, "OP_SET_GLOBAL"),
+                Some(OpCode::GetLocal) => self.print_constant(offset, "OP_GET_LOCAL"),
+                Some(OpCode::SetLocal) => self.print_constant(offset, "OP_SET_LOCAL"),
             }
         }
     }
