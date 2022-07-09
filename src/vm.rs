@@ -128,6 +128,8 @@ impl<'stdout> Vm<'stdout> {
                 let value = self.stack.pop().unwrap();
                 self.stack[self.fp + usize::from(offset)] = value;
             }
+            Some(OpCode::GetUpvalue) => todo!(),
+            Some(OpCode::SetUpvalue) => todo!(),
         }
     }
 }

@@ -28,6 +28,9 @@ pub(crate) enum OpCode {
     // Local
     GetLocal,
     SetLocal,
+    // Upvalue
+    GetUpvalue,
+    SetUpvalue,
 }
 
 pub(crate) struct Chunk {
@@ -91,6 +94,12 @@ impl Chunk {
                 Some(OpCode::SetGlobal) => self.print_constant(writer, offset, "OP_SET_GLOBAL")?,
                 Some(OpCode::GetLocal) => self.print_constant(writer, offset, "OP_GET_LOCAL")?,
                 Some(OpCode::SetLocal) => self.print_constant(writer, offset, "OP_SET_LOCAL")?,
+                Some(OpCode::GetUpvalue) => {
+                    self.print_constant(writer, offset, "OP_GET_UPVALUE")?
+                }
+                Some(OpCode::SetUpvalue) => {
+                    self.print_constant(writer, offset, "OP_SET_UPVALUE")?
+                }
             }
         }
         Ok(())
