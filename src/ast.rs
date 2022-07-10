@@ -47,6 +47,10 @@ pub(crate) enum AstBody<'arena> {
     Print(Ast<'arena>),
     Assign(String, Ast<'arena>),
     Var(String),
+    VarDecl {
+        ident: String,
+        initializer: Option<Ast<'arena>>,
+    },
     FunDecl {
         ident: String,
         parameters: Vec<String>,

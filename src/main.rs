@@ -29,22 +29,22 @@ fn print_errors(_: &str, errors: Vec<Simple<char>>, mapper: &LineMapper) {
 
 fn main() {
     let source = r#"
-fun greet(first, last) {
-    print("hello ");
-    print(first);
-    print(",");
-    print(last);
+fun foo() {
+    var variable = 100;
+    print(variable);
+    variable = "foo";
+    print(variable);
 }
-greet("John", "Doe");
 
-x = 100;
-print(
-    x
-    - 2
-    * 3
-);
-text = "foobar";
-print(text);
+fun bar() {
+    var uninitialized;
+    print(uninitialized);
+    uninitialized = "initialized";
+    print(uninitialized);
+}
+
+foo();
+bar();
 "#
     .to_string();
     println!("source = {}", source);

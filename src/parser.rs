@@ -60,6 +60,7 @@ defg"#;
 fn allowed_ident() -> impl Parser<char, String, Error = Simple<char>> + Clone + Copy {
     static KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         let mut keywords = HashSet::new();
+        keywords.insert("var");
         keywords.insert("fun");
         keywords.insert("print");
         keywords
@@ -157,65 +158,79 @@ pub(crate) fn parser<'arena>(
         term
     });
 
-    let print_stmt = keyword("print")
-        .padded()
-        .ignore_then(expr.clone().delimited_by(just('('), just(')')).padded())
-        .then_ignore(just(';'))
-        .map_with_span(|expr, span: Range<usize>| Ast {
-            body: arena.alloc(AstBody::Print(expr)),
-            span: span.into(),
-        })
-        .padded();
+    let stmt = recursive(move |stmt| {
+        let print_stmt = keyword("print")
+            .padded()
+            .ignore_then(expr.clone().delimited_by(just('('), just(')')).padded())
+            .then_ignore(just(';'))
+            .map_with_span(|expr, span: Range<usize>| Ast {
+                body: arena.alloc(AstBody::Print(expr)),
+                span: span.into(),
+            })
+            .padded();
 
-    let assign_stmt = allowed_ident()
-        .padded()
-        .then_ignore(just('=').padded())
-        .then(expr.clone())
-        .then_ignore(just(';'))
-        .map_with_span(|(ident, expr), span: Range<usize>| Ast {
-            body: arena.alloc(AstBody::Assign(ident, expr)),
-            span: span.into(),
-        })
-        .padded();
+        let assign_stmt = allowed_ident()
+            .padded()
+            .then_ignore(just('=').padded())
+            .then(expr.clone())
+            .then_ignore(just(';'))
+            .map_with_span(|(ident, expr), span: Range<usize>| Ast {
+                body: arena.alloc(AstBody::Assign(ident, expr)),
+                span: span.into(),
+            })
+            .padded();
 
-    let expr_stmt = expr
-        .then_ignore(just(';'))
-        .map_with_span(|expr, span: Range<usize>| Ast {
-            body: arena.alloc(AstBody::ExprStmt { expr }),
-            span: span.into(),
-        })
-        .padded();
+        let expr_stmt = expr
+            .clone()
+            .then_ignore(just(';'))
+            .map_with_span(|expr, span: Range<usize>| Ast {
+                body: arena.alloc(AstBody::ExprStmt { expr }),
+                span: span.into(),
+            })
+            .padded();
 
-    let stmt = print_stmt.or(assign_stmt).or(expr_stmt);
+        let var_decl = keyword("var")
+            .padded()
+            .ignore_then(allowed_ident().padded())
+            .then(just('=').ignore_then(expr).or_not())
+            .then_ignore(just(';'))
+            .map_with_span(|(ident, initializer), span: Range<usize>| Ast {
+                body: arena.alloc(AstBody::VarDecl { ident, initializer }),
+                span: span.into(),
+            })
+            .padded();
 
-    let fun_decl = keyword("fun")
-        .ignore_then(allowed_ident().padded())
-        .then(
-            allowed_ident()
-                .separated_by(just(',').padded())
-                .allow_trailing()
-                .delimited_by(just('('), just(')'))
-                .padded(),
-        )
-        .then(stmt.clone().repeated().delimited_by(just('{'), just('}')))
-        .map_with_span(|((ident, parameters), body), span: Range<usize>| Ast {
-            body: arena.alloc(AstBody::FunDecl {
-                ident,
-                parameters,
-                body,
-            }),
-            span: span.into(),
-        })
-        .padded();
+        let fun_decl = keyword("fun")
+            .ignore_then(allowed_ident().padded())
+            .then(
+                allowed_ident()
+                    .separated_by(just(',').padded())
+                    .allow_trailing()
+                    .delimited_by(just('('), just(')'))
+                    .padded(),
+            )
+            .then(stmt.clone().repeated().delimited_by(just('{'), just('}')))
+            .map_with_span(|((ident, parameters), body), span: Range<usize>| Ast {
+                body: arena.alloc(AstBody::FunDecl {
+                    ident,
+                    parameters,
+                    body,
+                }),
+                span: span.into(),
+            })
+            .padded();
 
-    let decl = fun_decl;
+        print_stmt
+            .or(assign_stmt)
+            .or(expr_stmt)
+            .or(var_decl)
+            .or(fun_decl)
+    });
 
-    let toplevel = stmt.or(decl);
-
-    let program = toplevel
+    let program = stmt
         .repeated()
-        .map_with_span(|toplevel, span: Range<usize>| Ast {
-            body: arena.alloc(AstBody::Root(toplevel)),
+        .map_with_span(|stmts, span: Range<usize>| Ast {
+            body: arena.alloc(AstBody::Root(stmts)),
             span: span.into(),
         });
 

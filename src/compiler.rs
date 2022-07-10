@@ -161,10 +161,8 @@ impl<'parent> Compiler<'parent> {
         self.builder.build()
     }
 
-    fn push_local(&mut self, ident: &str) -> u8 {
-        let index = self.locals.len();
+    fn push_local(&mut self, ident: &str) {
         self.locals.push(Local::new(ident.into()));
-        u8::try_from(index).unwrap()
     }
 
     fn emit_set(&mut self, ident: &str, line: usize) {
@@ -179,8 +177,6 @@ impl<'parent> Compiler<'parent> {
                 self.builder.push_u8(index, line);
             }
             LookupResult::Local(index) => {
-                // TODO: これ毎回宣言してておかしいので変数宣言を入れる
-                let index = self.push_local(ident);
                 self.builder.push_op(OpCode::SetLocal, line);
                 self.builder.push_u8(index, line);
             }
@@ -239,6 +235,29 @@ impl<'parent> Compiler<'parent> {
                     self.builder.push_u8(index, start_line);
                 }
             },
+            AstBody::VarDecl { ident, initializer } => {
+                if self.parent.is_some() {
+                    // Treat the var declaration as local only if it's in a function.
+                    self.push_local(ident);
+
+                    // We allocate the slot for the local variable by pushing nil.
+                    self.builder.push_op(OpCode::Nil, start_line);
+
+                    // And then, emit SET_LOCAL if the declaration has an initializer.
+                    if let Some(initializer) = *initializer {
+                        self.push(initializer, mapper);
+                        self.emit_set(ident, start_line);
+                    }
+                } else {
+                    // If we declare a global variable, then we emit SET_GLOBAL without
+                    // allocating a slot for it.
+                    match *initializer {
+                        Some(initializer) => self.push(initializer, mapper),
+                        None => self.builder.push_op(OpCode::Nil, start_line),
+                    }
+                    self.emit_set(ident, start_line);
+                }
+            }
             AstBody::FunDecl {
                 ident,
                 parameters,

@@ -68,3 +68,28 @@ greet("John Doe");
 "#,
     )
 }
+
+#[test]
+fn test_local_variable() {
+    run_test(
+        "test_local_variable",
+        r#"
+fun foo() {
+    var variable = 100;
+    print(variable);
+    variable = "foo";
+    print(variable);
+}
+
+fun bar() {
+    var uninitialized;
+    print(uninitialized);
+    uninitialized = "initialized";
+    print(uninitialized);
+}
+
+foo();
+bar();
+"#,
+    );
+}
