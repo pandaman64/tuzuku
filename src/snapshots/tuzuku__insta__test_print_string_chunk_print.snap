@@ -3,6 +3,7 @@ source: src/insta.rs
 assertion_line: 14
 expression: "String::from_utf8_lossy(&chunk_print)"
 ---
+==== test_print_string ====
  offset | line | opcode         | constants
  000000 | 0001 | OP_CONSTANT    | foobar
  000002 | 0001 | OP_PRINT       |
