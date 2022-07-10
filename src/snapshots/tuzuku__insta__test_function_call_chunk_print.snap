@@ -1,0 +1,14 @@
+---
+source: src/insta.rs
+assertion_line: 14
+expression: "String::from_utf8_lossy(&chunk_print)"
+---
+==== test_function_call ====
+ offset | line | opcode         | constants
+ 000000 | 0002 | OP_CONSTANT    | <function greet>
+ 000002 | 0002 | OP_SET_GLOBAL  | greet
+ 000004 | 0007 | OP_GET_GLOBAL  | greet
+ 000006 | 0007 | OP_CONSTANT    | John Doe
+ 000008 | 0007 | OP_CALL        | 1
+ 000010 | 0007 | OP_POP         |
+

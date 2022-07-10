@@ -53,3 +53,18 @@ fn test_print_string() {
 fn test_print_int() {
     run_test("test_print_int", r#"print(42);"#);
 }
+
+#[test]
+fn test_function_call() {
+    run_test(
+        "test_function_call",
+        r#"
+fun greet(name) {
+    print("Hello");
+    print(name);
+}
+
+greet("John Doe");
+"#,
+    )
+}

@@ -1,0 +1,16 @@
+---
+source: src/insta.rs
+assertion_line: 41
+expression: "String::from_utf8_lossy(&stdout)"
+---
+==== greet ====
+ offset | line | opcode         | constants
+ 000000 | 0003 | OP_CONSTANT    | Hello
+ 000002 | 0003 | OP_PRINT       |
+ 000003 | 0004 | OP_GET_LOCAL   | 1
+ 000005 | 0004 | OP_PRINT       |
+ 000006 | 0005 | OP_NIL         |
+ 000007 | 0005 | OP_RETURN      |
+Hello
+John Doe
+
