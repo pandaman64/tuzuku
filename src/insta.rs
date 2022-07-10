@@ -9,7 +9,7 @@ use crate::{driver::Driver, opcode::Chunk, parser::LineMapper};
 
 fn assert_chunk_print(test_name: &str, chunk: &Chunk, _: &mut dyn Write) -> io::Result<()> {
     let mut chunk_print = vec![];
-    let _ = chunk.write(&mut chunk_print);
+    let _ = chunk.write(test_name, &mut chunk_print);
 
     insta::assert_snapshot!(
         format!("{}_chunk_print", test_name),

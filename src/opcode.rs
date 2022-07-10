@@ -17,6 +17,7 @@ pub(crate) enum OpCode {
     Print,
     Pop,
     Call,
+    Return,
     // Binary operators
     Add,
     Sub,
@@ -65,13 +66,19 @@ impl Chunk {
         Ok(2)
     }
 
-    fn print_call(&self, writer: &mut dyn io::Write, offset: usize) -> io::Result<usize> {
-        let arguments_len = self.code[offset + 1];
-        writeln!(writer, " {:-14} | {}", "OP_CALL", arguments_len)?;
+    fn print_immediate(
+        &self,
+        writer: &mut dyn io::Write,
+        offset: usize,
+        name: &str,
+    ) -> io::Result<usize> {
+        let immediate = self.code[offset + 1];
+        writeln!(writer, " {:-14} | {}", name, immediate)?;
         Ok(2)
     }
 
-    pub(crate) fn write(&self, writer: &mut dyn io::Write) -> io::Result<()> {
+    pub(crate) fn write(&self, name: &str, writer: &mut dyn io::Write) -> io::Result<()> {
+        writeln!(writer, "==== {} ====", name)?;
         writeln!(writer, " offset | line | {:-14} | constants", "opcode")?;
         let mut offset = 0;
         while offset < self.code.len() {
@@ -84,7 +91,8 @@ impl Chunk {
                 Some(OpCode::False) => self.print_simple(writer, "OP_FALSE")?,
                 Some(OpCode::Pop) => self.print_simple(writer, "OP_POP")?,
                 Some(OpCode::Print) => self.print_simple(writer, "OP_PRINT")?,
-                Some(OpCode::Call) => self.print_call(writer, offset)?,
+                Some(OpCode::Call) => self.print_immediate(writer, offset, "OP_CALL")?,
+                Some(OpCode::Return) => self.print_simple(writer, "OP_RETURN")?,
                 Some(OpCode::Constant) => self.print_constant(writer, offset, "OP_CONSTANT")?,
                 Some(OpCode::Add) => self.print_simple(writer, "OP_ADD")?,
                 Some(OpCode::Sub) => self.print_simple(writer, "OP_SUB")?,
@@ -92,13 +100,13 @@ impl Chunk {
                 Some(OpCode::Div) => self.print_simple(writer, "OP_DIV")?,
                 Some(OpCode::GetGlobal) => self.print_constant(writer, offset, "OP_GET_GLOBAL")?,
                 Some(OpCode::SetGlobal) => self.print_constant(writer, offset, "OP_SET_GLOBAL")?,
-                Some(OpCode::GetLocal) => self.print_constant(writer, offset, "OP_GET_LOCAL")?,
-                Some(OpCode::SetLocal) => self.print_constant(writer, offset, "OP_SET_LOCAL")?,
+                Some(OpCode::GetLocal) => self.print_immediate(writer, offset, "OP_GET_LOCAL")?,
+                Some(OpCode::SetLocal) => self.print_immediate(writer, offset, "OP_SET_LOCAL")?,
                 Some(OpCode::GetUpvalue) => {
-                    self.print_constant(writer, offset, "OP_GET_UPVALUE")?
+                    self.print_immediate(writer, offset, "OP_GET_UPVALUE")?
                 }
                 Some(OpCode::SetUpvalue) => {
-                    self.print_constant(writer, offset, "OP_SET_UPVALUE")?
+                    self.print_immediate(writer, offset, "OP_SET_UPVALUE")?
                 }
             }
         }

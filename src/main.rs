@@ -13,8 +13,8 @@ mod parser;
 mod value;
 mod vm;
 
-fn print_chunk(_: &str, chunk: &Chunk, writer: &mut dyn Write) -> io::Result<()> {
-    chunk.write(writer)
+fn print_chunk(file_name: &str, chunk: &Chunk, writer: &mut dyn Write) -> io::Result<()> {
+    chunk.write(file_name, writer)
 }
 
 fn print_errors(_: &str, errors: Vec<Simple<char>>, mapper: &LineMapper) {
@@ -32,7 +32,7 @@ fn main() {
 fun greet(first, last) {
     print("hello ");
     print(first);
-    print(" ");
+    print(",");
     print(last);
 }
 greet("John", "Doe");
@@ -51,7 +51,7 @@ print(text);
 
     let mut stdout = io::stdout().lock();
     let mut driver = Driver {
-        file_name: "inline".into(),
+        file_name: "inline source".into(),
         source,
         run: true,
         stdout: &mut stdout,

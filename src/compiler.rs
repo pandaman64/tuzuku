@@ -195,6 +195,7 @@ impl<'parent> Compiler<'parent> {
 
     fn push(&mut self, ast: Ast<'_>, mapper: &LineMapper) {
         let start_line = mapper.find(ast.span.start);
+        let end_line = mapper.find(ast.span.end);
         match ast.body {
             AstBody::Number(number) => {
                 let index = self.builder.push_constant(Value::Number(*number));
@@ -248,6 +249,9 @@ impl<'parent> Compiler<'parent> {
                 for stmt in body.iter() {
                     fun_compiler.push(*stmt, mapper);
                 }
+                // TODO: handle explicit return
+                fun_compiler.builder.push_op(OpCode::Nil, end_line);
+                fun_compiler.builder.push_op(OpCode::Return, end_line);
                 let fun_chunk = fun_compiler.build();
 
                 let fun_const_index = self.builder.push_constant(Value::Function {
