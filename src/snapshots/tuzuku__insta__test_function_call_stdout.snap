@@ -9,8 +9,9 @@ expression: "String::from_utf8_lossy(&stdout)"
  000002 | 0003 | OP_PRINT       |
  000003 | 0004 | OP_GET_LOCAL   | 1
  000005 | 0004 | OP_PRINT       |
- 000006 | 0005 | OP_NIL         |
- 000007 | 0005 | OP_RETURN      |
+ 000006 | 0005 | OP_POP         |
+ 000007 | 0005 | OP_NIL         |
+ 000008 | 0005 | OP_RETURN      |
 Hello
 John Doe
 

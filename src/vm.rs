@@ -80,6 +80,7 @@ impl<'stdout> Vm<'stdout> {
                 self.stack.pop().unwrap();
                 self.continuation.advance(1);
             }
+            Some(OpCode::CloseUpvalue) => todo!(),
             Some(OpCode::Print) => {
                 let value = self.stack.pop().unwrap();
                 writeln!(self.stdout, "{}", value.display()).unwrap();

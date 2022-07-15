@@ -16,6 +16,7 @@ pub(crate) enum OpCode {
     // Consumers
     Print,
     Pop,
+    CloseUpvalue,
     Call,
     Return,
     // Binary operators
@@ -90,6 +91,7 @@ impl Chunk {
                 Some(OpCode::True) => self.print_simple(writer, "OP_TRUE")?,
                 Some(OpCode::False) => self.print_simple(writer, "OP_FALSE")?,
                 Some(OpCode::Pop) => self.print_simple(writer, "OP_POP")?,
+                Some(OpCode::CloseUpvalue) => self.print_simple(writer, "OP_CLOSE_UPVALUE")?,
                 Some(OpCode::Print) => self.print_simple(writer, "OP_PRINT")?,
                 Some(OpCode::Call) => self.print_immediate(writer, offset, "OP_CALL")?,
                 Some(OpCode::Return) => self.print_simple(writer, "OP_RETURN")?,

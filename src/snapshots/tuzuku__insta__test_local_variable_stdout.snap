@@ -14,8 +14,9 @@ expression: "String::from_utf8_lossy(&stdout)"
  000010 | 0005 | OP_SET_LOCAL   | 1
  000012 | 0006 | OP_GET_LOCAL   | 1
  000014 | 0006 | OP_PRINT       |
- 000015 | 0007 | OP_NIL         |
- 000016 | 0007 | OP_RETURN      |
+ 000015 | 0007 | OP_POP         |
+ 000016 | 0007 | OP_NIL         |
+ 000017 | 0007 | OP_RETURN      |
 100
 foo
 ==== bar ====
@@ -27,8 +28,9 @@ foo
  000006 | 0012 | OP_SET_LOCAL   | 1
  000008 | 0013 | OP_GET_LOCAL   | 1
  000010 | 0013 | OP_PRINT       |
- 000011 | 0014 | OP_NIL         |
- 000012 | 0014 | OP_RETURN      |
+ 000011 | 0014 | OP_POP         |
+ 000012 | 0014 | OP_NIL         |
+ 000013 | 0014 | OP_RETURN      |
 <nil>
 initialized
 

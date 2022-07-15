@@ -12,13 +12,19 @@ use crate::{
 
 struct Local {
     ident: String,
+    level: usize,
     captured: Cell<bool>,
 }
 
 impl Local {
-    fn new(ident: String) -> Self {
+    fn cont() -> Self {
+        Self::new("<cont>".into(), 0)
+    }
+
+    fn new(ident: String, level: usize) -> Self {
         Self {
             ident,
+            level,
             captured: Cell::new(false),
         }
     }
@@ -60,32 +66,39 @@ impl Upvalue {
 
 struct Compiler<'parent> {
     builder: ChunkBuilder,
+    /// The list of locals visible by the compiling block, sorted by level.
     locals: Vec<Local>,
+    /// The current level of the locals.
+    current_level: usize,
     upvalues: RefCell<Vec<Upvalue>>,
     parent: Option<&'parent Compiler<'parent>>,
 }
 
 impl Default for Compiler<'_> {
     fn default() -> Self {
-        Self {
-            builder: ChunkBuilder::default(),
-            locals: vec![Local::new("<cont>".into())],
-            upvalues: RefCell::new(vec![]),
-            parent: None,
-        }
+        Self::new(None)
     }
 }
 
 impl<'parent> Compiler<'parent> {
-    fn new(parameters: &[String], parent: &'parent Compiler<'parent>) -> Self {
-        let mut locals = vec![Local::new("<cont>".into())];
-        locals.extend(parameters.iter().map(|param| Local::new(param.into())));
-        Self {
+    fn new(parent: Option<&'parent Compiler<'parent>>) -> Self {
+        let mut this = Self {
             builder: ChunkBuilder::default(),
-            locals,
+            locals: vec![Local::cont()],
+            current_level: 0,
             upvalues: RefCell::new(vec![]),
-            parent: Some(parent),
+            parent,
+        };
+        this.begin_scope();
+        this
+    }
+
+    fn with_parent(parameters: &[String], parent: &'parent Compiler<'parent>) -> Self {
+        let mut this = Self::new(Some(parent));
+        for param in parameters.iter() {
+            this.push_local(param);
         }
+        this
     }
 
     /// Look up the given identifier from the local variables slots of this function.
@@ -161,8 +174,31 @@ impl<'parent> Compiler<'parent> {
         self.builder.build()
     }
 
+    fn begin_scope(&mut self) {
+        self.current_level += 1;
+    }
+
+    fn end_scope(&mut self, line: usize) {
+        // We emit OP_POP or OP_CLOSE_UPVALUE for each locals in the current scope.
+        while let Some(last_local) = self.locals.last() {
+            if last_local.level < self.current_level {
+                break;
+            }
+
+            if last_local.captured.get() {
+                self.builder.push_op(OpCode::CloseUpvalue, line);
+            } else {
+                self.builder.push_op(OpCode::Pop, line);
+            }
+
+            self.locals.pop();
+        }
+        self.current_level -= 1;
+    }
+
     fn push_local(&mut self, ident: &str) {
-        self.locals.push(Local::new(ident.into()));
+        self.locals
+            .push(Local::new(ident.into(), self.current_level));
     }
 
     fn emit_set(&mut self, ident: &str, line: usize) {
@@ -264,11 +300,12 @@ impl<'parent> Compiler<'parent> {
                 body,
             } => {
                 // TODO: end scope
-                let mut fun_compiler = Compiler::new(parameters, self);
+                let mut fun_compiler = Compiler::with_parent(parameters, self);
                 for stmt in body.iter() {
                     fun_compiler.push(*stmt, mapper);
                 }
                 // TODO: handle explicit return
+                fun_compiler.end_scope(end_line);
                 fun_compiler.builder.push_op(OpCode::Nil, end_line);
                 fun_compiler.builder.push_op(OpCode::Return, end_line);
                 let fun_chunk = fun_compiler.build();
@@ -301,5 +338,7 @@ impl<'parent> Compiler<'parent> {
 pub(crate) fn compile(ast: Ast<'_>, mapper: &LineMapper) -> Chunk {
     let mut compiler = Compiler::default();
     compiler.push(ast, mapper);
+    // TODO: ここにend_scopeが必要なのが気に食わない
+    compiler.end_scope(mapper.find(ast.span.end));
     compiler.build()
 }
