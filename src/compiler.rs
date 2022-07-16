@@ -7,7 +7,7 @@ use crate::{
     ast::{Ast, AstBody},
     opcode::{Chunk, ChunkBuilder, OpCode},
     parser::LineMapper,
-    value::Value,
+    value::{Function, Value},
 };
 
 struct Local {
@@ -310,10 +310,10 @@ impl<'parent> Compiler<'parent> {
                 fun_compiler.builder.push_op(OpCode::Return, end_line);
                 let fun_chunk = fun_compiler.build();
 
-                let fun_const_index = self.builder.push_constant(Value::Function {
-                    name: ident.into(),
-                    chunk: Rc::new(fun_chunk),
-                });
+                let fun_const_index = self.builder.push_constant(Value::Function(Function::new(
+                    ident.into(),
+                    Rc::new(fun_chunk),
+                )));
                 self.builder.push_op(OpCode::Constant, start_line);
                 self.builder.push_u8(fun_const_index, start_line);
                 self.emit_set(ident, start_line);

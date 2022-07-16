@@ -13,8 +13,8 @@ struct Global {
 }
 
 pub(crate) struct Vm<'stdout> {
+    /// The current continuation to run the rest of the program.
     continuation: Continuation,
-    stack: Vec<Value>,
     global: Global,
     stdout: &'stdout mut (dyn Write + 'stdout),
 }
@@ -22,8 +22,7 @@ pub(crate) struct Vm<'stdout> {
 impl<'stdout> Vm<'stdout> {
     pub(crate) fn new(chunk: Chunk, stdout: &'stdout mut (dyn Write + 'stdout)) -> Self {
         Vm {
-            continuation: Continuation::new(Rc::new(chunk)),
-            stack: vec![],
+            continuation: Continuation::initial(Rc::new(chunk)),
             global: Global::default(),
             stdout,
         }
@@ -34,12 +33,14 @@ impl<'stdout> Vm<'stdout> {
     }
 
     fn binop(&mut self, op: fn(f64, f64) -> f64) {
-        let rhs = self.stack.pop().unwrap();
-        let lhs = self.stack.pop().unwrap();
+        let rhs = self.continuation.stack_mut().pop().unwrap();
+        let lhs = self.continuation.stack_mut().pop().unwrap();
 
         match (lhs, rhs) {
             (Value::Number(lhs), Value::Number(rhs)) => {
-                self.stack.push(Value::Number(op(lhs, rhs)));
+                self.continuation
+                    .stack_mut()
+                    .push(Value::Number(op(lhs, rhs)));
                 self.continuation.advance(1);
             }
             _ => panic!("bad type"),
@@ -47,17 +48,8 @@ impl<'stdout> Vm<'stdout> {
     }
 
     fn call(&mut self, arguments_len: u8) {
-        let return_continuation = Value::Return(self.continuation.clone());
-
-        let callee_index = self.stack.len() - usize::from(arguments_len) - 1;
-        let callee = std::mem::replace(&mut self.stack[callee_index], return_continuation);
-        match callee {
-            Value::Function { name, chunk } => {
-                self.continuation = Continuation::new(chunk);
-                self.continuation.chunk().write(&name, self.stdout).unwrap();
-            }
-            _ => todo!("type check function callee"),
-        }
+        let callee = self.continuation.call(arguments_len);
+        callee.chunk().write(callee.name(), self.stdout).unwrap();
     }
 
     pub(crate) fn step(&mut self) {
@@ -65,24 +57,24 @@ impl<'stdout> Vm<'stdout> {
         match opcode {
             None => panic!("unknown opcode"),
             Some(OpCode::Nil) => {
-                self.stack.push(Value::Nil);
+                self.continuation.stack_mut().push(Value::Nil);
                 self.continuation.advance(1);
             }
             Some(OpCode::True) => {
-                self.stack.push(Value::Boolean(true));
+                self.continuation.stack_mut().push(Value::Boolean(true));
                 self.continuation.advance(1);
             }
             Some(OpCode::False) => {
-                self.stack.push(Value::Boolean(false));
+                self.continuation.stack_mut().push(Value::Boolean(false));
                 self.continuation.advance(1);
             }
             Some(OpCode::Pop) => {
-                self.stack.pop().unwrap();
+                self.continuation.stack_mut().pop().unwrap();
                 self.continuation.advance(1);
             }
             Some(OpCode::CloseUpvalue) => todo!(),
             Some(OpCode::Print) => {
-                let value = self.stack.pop().unwrap();
+                let value = self.continuation.stack_mut().pop().unwrap();
                 writeln!(self.stdout, "{}", value.display()).unwrap();
                 self.continuation.advance(1);
             }
@@ -94,24 +86,12 @@ impl<'stdout> Vm<'stdout> {
                 self.call(arguments_len);
             }
             Some(OpCode::Return) => {
-                let return_value = self.stack.pop().unwrap();
-                let continuation = {
-                    // The stack frame for this function call.
-                    let mut frame = self.stack.drain(self.continuation.fp()..);
-                    frame.next().unwrap()
-                };
-                match continuation {
-                    Value::Return(continuation) => {
-                        self.continuation = continuation;
-                        self.stack.push(return_value);
-                    }
-                    _ => todo!("type error at OP_RETURN"),
-                }
+                self.continuation.perform_return();
             }
             Some(OpCode::Constant) => {
                 let index = self.continuation.code(1);
                 let value = self.continuation.constant(index).clone();
-                self.stack.push(value);
+                self.continuation.stack_mut().push(value);
                 self.continuation.advance(2);
             }
             Some(OpCode::Add) => self.binop(|lhs, rhs| lhs + rhs),
@@ -124,7 +104,7 @@ impl<'stdout> Vm<'stdout> {
                 match value {
                     Value::String(name) => {
                         let value = self.global.definitions[name].clone();
-                        self.stack.push(value);
+                        self.continuation.stack_mut().push(value);
                         self.continuation.advance(2);
                     }
                     _ => unreachable!("compile error: OP_GET_GLOBAL takes a string constant"),
@@ -132,11 +112,11 @@ impl<'stdout> Vm<'stdout> {
             }
             Some(OpCode::SetGlobal) => {
                 let index = self.continuation.code(1);
-                let value = self.continuation.constant(index);
+                let value = self.continuation.constant(index).clone();
                 match value {
                     Value::String(name) => {
-                        let value = self.stack.pop().unwrap();
-                        self.global.definitions.insert(name.clone(), value);
+                        let value = self.continuation.stack_mut().pop().unwrap();
+                        self.global.definitions.insert(name, value);
                         self.continuation.advance(2);
                     }
                     _ => unreachable!("compile error: OP_SET_GLOBAL takes a string constant"),
@@ -144,14 +124,14 @@ impl<'stdout> Vm<'stdout> {
             }
             Some(OpCode::GetLocal) => {
                 let offset = self.continuation.code(1);
-                let value = self.stack[self.continuation.fp() + usize::from(offset)].clone();
-                self.stack.push(value);
+                let value = self.continuation.stack_mut().get_local(offset);
+                self.continuation.stack_mut().push(value);
                 self.continuation.advance(2);
             }
             Some(OpCode::SetLocal) => {
                 let offset = self.continuation.code(1);
-                let value = self.stack.pop().unwrap();
-                self.stack[self.continuation.fp() + usize::from(offset)] = value;
+                let value = self.continuation.stack_mut().pop().unwrap();
+                self.continuation.stack_mut().set_local(offset, value);
                 self.continuation.advance(2);
             }
             Some(OpCode::GetUpvalue) => todo!(),

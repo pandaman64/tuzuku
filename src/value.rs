@@ -1,6 +1,87 @@
-use std::rc::Rc;
+use std::{cell::RefCell, ops::DerefMut, rc::Rc};
 
 use crate::opcode::Chunk;
+
+const STACK_SIZE: usize = 1024;
+
+#[derive(Clone)]
+pub(crate) struct Stack {
+    /// The value stack.
+    values: Rc<[RefCell<Option<Value>>]>,
+    /// The index at the past one after the end of stack.
+    sp: usize,
+    /// The starting point of the current function in the stack.
+    fp: usize,
+}
+
+impl Stack {
+    fn empty() -> Self {
+        Self {
+            values: [(); STACK_SIZE]
+                .map(|()| RefCell::new(None))
+                .as_slice()
+                .into(),
+            sp: 0,
+            fp: 0,
+        }
+    }
+
+    fn check(&self) {
+        assert!(self.sp < STACK_SIZE);
+        assert!(self.fp <= self.sp);
+
+        #[cfg(debug_assertions)]
+        for (idx, value) in self.values.iter().enumerate() {
+            assert_eq!(idx < self.sp, value.borrow().is_some());
+        }
+    }
+
+    pub(crate) fn push(&mut self, value: Value) {
+        self.check();
+        // TODO: stack overflow
+        *self.values[self.sp].borrow_mut() = Some(value);
+        self.sp += 1;
+    }
+
+    pub(crate) fn pop(&mut self) -> Option<Value> {
+        self.check();
+        // TODO: negative overflow
+        self.sp -= 1;
+        std::mem::replace(self.values[self.sp].borrow_mut().deref_mut(), None)
+    }
+
+    fn replace_at(&mut self, index: usize, value: Value) -> Value {
+        self.check();
+        assert!(index < self.sp);
+        let mut place = self.values[index].borrow_mut();
+        std::mem::replace(place.deref_mut(), Some(value)).unwrap()
+    }
+
+    /// Reset sp and drop the values in the following slots.
+    fn rewind_sp(&mut self, new_sp: usize) {
+        assert!(new_sp < self.sp);
+
+        for place in self.values[new_sp..self.sp].iter() {
+            *place.borrow_mut() = None;
+        }
+        self.sp = new_sp;
+
+        self.check();
+    }
+
+    pub(crate) fn get_local(&self, offset: u8) -> Value {
+        self.check();
+        self.values[self.fp + usize::from(offset)]
+            .clone()
+            .into_inner()
+            .unwrap()
+    }
+
+    pub(crate) fn set_local(&mut self, offset: u8, value: Value) {
+        self.check();
+        self.replace_at(self.fp + usize::from(offset), value);
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct Continuation {
@@ -8,25 +89,22 @@ pub(crate) struct Continuation {
     chunk: Rc<Chunk>,
     /// The instruction pointer.
     ip: usize,
-    /// The starting point in the stack.
-    fp: usize,
+    /// The value stack
+    stack: Stack,
 }
 
 impl Continuation {
-    pub(crate) fn new(chunk: Rc<Chunk>) -> Self {
+    /// Create a continuation at the start of running the program.
+    pub(crate) fn initial(chunk: Rc<Chunk>) -> Self {
         Self {
             chunk,
+            stack: Stack::empty(),
             ip: 0,
-            fp: 0,
         }
     }
 
-    pub(crate) fn chunk(&self) -> &Chunk {
-        &self.chunk
-    }
-
-    pub(crate) fn fp(&self) -> usize {
-        self.fp
+    pub(crate) fn stack_mut(&mut self) -> &mut Stack {
+        &mut self.stack
     }
 
     pub(crate) fn code(&self, increment: usize) -> u8 {
@@ -48,6 +126,72 @@ impl Continuation {
     pub(crate) fn advance(&mut self, increment: usize) {
         self.ip += increment;
     }
+
+    pub(crate) fn display(&self) -> String {
+        format!(
+            "ip = {}, sp = {}, fp = {}",
+            self.ip, self.stack.sp, self.stack.fp
+        )
+    }
+
+    /// Call a function on the top of the stack.
+    pub(crate) fn call(&mut self, arguments_len: u8) -> Function {
+        // NOTE: the stack pointer of the return_continuation is invalid when we return from the function.
+        // But, perform_return() adjust it when we actually return to the callee.
+        let return_continuation = Value::Return(self.clone());
+        let callee_index = self.stack.sp - usize::from(arguments_len) - 1;
+        let callee = self.stack.replace_at(callee_index, return_continuation);
+        match callee {
+            Value::Function(callee) => {
+                // Jump to the start of the given chunk.
+                self.chunk = callee.chunk.clone();
+                self.ip = 0;
+                // Shift the frame pointer (stack pointer remains same).
+                self.stack.fp = callee_index;
+                callee
+            }
+            _ => todo!("callee is not a function"),
+        }
+    }
+
+    /// Run the return procedure.
+    ///
+    /// It first retrieves the continuation to return, and reset self to it.
+    /// Then, it adjusts the stack pointer and push the return value on top of the stack.
+    pub(crate) fn perform_return(&mut self) {
+        let fp = self.stack.fp;
+
+        let return_value = self.stack.pop().unwrap();
+        let continuation = self.stack.get_local(0);
+        match continuation {
+            Value::Return(continuation) => {
+                *self = continuation;
+                self.stack.rewind_sp(fp);
+                self.stack.push(return_value);
+            }
+            _ => todo!("The return continuation is not a continuation"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct Function {
+    name: String,
+    chunk: Rc<Chunk>,
+}
+
+impl Function {
+    pub(crate) fn new(name: String, chunk: Rc<Chunk>) -> Self {
+        Self { name, chunk }
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn chunk(&self) -> &Chunk {
+        &self.chunk
+    }
 }
 
 #[derive(Clone)]
@@ -56,7 +200,7 @@ pub(crate) enum Value {
     Boolean(bool),
     Number(f64),
     String(String),
-    Function { name: String, chunk: Rc<Chunk> },
+    Function(Function),
     Return(Continuation),
 }
 
@@ -67,8 +211,8 @@ impl Value {
             Value::Boolean(b) => format!("<{}>", b),
             Value::Number(n) => n.to_string(),
             Value::String(s) => s.clone(),
-            Value::Function { name, .. } => format!("<function {}>", name),
-            Value::Return(Continuation { ip, fp, .. }) => format!("<return ip={} fp={}>", ip, fp),
+            Value::Function(Function { name, .. }) => format!("<function {}>", name),
+            Value::Return(continuation) => format!("<return {}>", continuation.display()),
         }
     }
 }
