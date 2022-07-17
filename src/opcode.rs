@@ -3,7 +3,7 @@ use std::io;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive as _;
 
-use crate::value::Value;
+use crate::constant::Constant;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive)]
@@ -38,7 +38,7 @@ pub(crate) enum OpCode {
 pub(crate) struct Chunk {
     code: Box<[u8]>,
     lines: Box<[usize]>,
-    constants: Box<[Value]>,
+    constants: Box<[Constant]>,
 }
 
 impl Chunk {
@@ -46,7 +46,7 @@ impl Chunk {
         &self.code
     }
 
-    pub(crate) fn constants(&self) -> &[Value] {
+    pub(crate) fn constants(&self) -> &[Constant] {
         &self.constants
     }
 
@@ -120,7 +120,7 @@ impl Chunk {
 pub(crate) struct ChunkBuilder {
     code: Vec<u8>,
     lines: Vec<usize>,
-    constants: Vec<Value>,
+    constants: Vec<Constant>,
 }
 
 impl ChunkBuilder {
@@ -133,7 +133,7 @@ impl ChunkBuilder {
         self.lines.push(line);
     }
 
-    pub(crate) fn push_constant(&mut self, constant: Value) -> u8 {
+    pub(crate) fn push_constant(&mut self, constant: Constant) -> u8 {
         let index = self.constants.len();
         self.constants.push(constant);
         u8::try_from(index).unwrap()

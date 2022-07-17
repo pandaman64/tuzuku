@@ -1,6 +1,6 @@
 use std::{cell::RefCell, ops::DerefMut, rc::Rc};
 
-use crate::opcode::Chunk;
+use crate::{constant::Constant, opcode::Chunk};
 
 const STACK_SIZE: usize = 1024;
 
@@ -115,7 +115,7 @@ impl Continuation {
         self.code(0)
     }
 
-    pub(crate) fn constant(&self, index: u8) -> &Value {
+    pub(crate) fn constant(&self, index: u8) -> &Constant {
         &self.chunk.constants()[usize::from(index)]
     }
 
@@ -213,6 +213,16 @@ impl Value {
             Value::String(s) => s.clone(),
             Value::Function(Function { name, .. }) => format!("<function {}>", name),
             Value::Return(continuation) => format!("<return {}>", continuation.display()),
+        }
+    }
+}
+
+impl From<Constant> for Value {
+    fn from(constant: Constant) -> Self {
+        match constant {
+            Constant::Number(n) => Value::Number(n),
+            Constant::String(s) => Value::String(s),
+            Constant::Function(f) => Value::Function(f),
         }
     }
 }

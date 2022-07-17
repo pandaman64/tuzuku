@@ -6,6 +6,7 @@ use crate::{driver::Driver, opcode::Chunk, parser::LineMapper};
 
 mod ast;
 mod compiler;
+mod constant;
 mod driver;
 mod insta;
 mod opcode;

@@ -5,9 +5,10 @@ use std::{
 
 use crate::{
     ast::{Ast, AstBody},
+    constant::Constant,
     opcode::{Chunk, ChunkBuilder, OpCode},
     parser::LineMapper,
-    value::{Function, Value},
+    value::Function,
 };
 
 struct Local {
@@ -204,7 +205,7 @@ impl<'parent> Compiler<'parent> {
     fn emit_set(&mut self, ident: &str, line: usize) {
         match self.lookup(ident) {
             LookupResult::NotFound => {
-                let index = self.builder.push_constant(Value::String(ident.into()));
+                let index = self.builder.push_constant(Constant::String(ident.into()));
                 self.builder.push_op(OpCode::SetGlobal, line);
                 self.builder.push_u8(index, line);
             }
@@ -230,12 +231,12 @@ impl<'parent> Compiler<'parent> {
         let end_line = mapper.find(ast.span.end);
         match ast.body {
             AstBody::Number(number) => {
-                let index = self.builder.push_constant(Value::Number(*number));
+                let index = self.builder.push_constant(Constant::Number(*number));
                 self.builder.push_op(OpCode::Constant, start_line);
                 self.builder.push_u8(index, start_line);
             }
             AstBody::String(string) => {
-                let index = self.builder.push_constant(Value::String(string.clone()));
+                let index = self.builder.push_constant(Constant::String(string.clone()));
                 self.builder.push_op(OpCode::Constant, start_line);
                 self.builder.push_u8(index, start_line);
             }
@@ -258,7 +259,7 @@ impl<'parent> Compiler<'parent> {
             }
             AstBody::Var(ident) => match self.lookup(ident) {
                 LookupResult::NotFound => {
-                    let index = self.builder.push_constant(Value::String(ident.clone()));
+                    let index = self.builder.push_constant(Constant::String(ident.clone()));
                     self.builder.push_op(OpCode::GetGlobal, start_line);
                     self.builder.push_u8(index, start_line);
                 }
@@ -310,10 +311,9 @@ impl<'parent> Compiler<'parent> {
                 fun_compiler.builder.push_op(OpCode::Return, end_line);
                 let fun_chunk = fun_compiler.build();
 
-                let fun_const_index = self.builder.push_constant(Value::Function(Function::new(
-                    ident.into(),
-                    Rc::new(fun_chunk),
-                )));
+                let fun_const_index = self.builder.push_constant(Constant::Function(
+                    Function::new(ident.into(), Rc::new(fun_chunk)),
+                ));
                 self.builder.push_op(OpCode::Constant, start_line);
                 self.builder.push_u8(fun_const_index, start_line);
                 self.emit_set(ident, start_line);

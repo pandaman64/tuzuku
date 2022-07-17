@@ -1,6 +1,7 @@
 use std::{collections::HashMap, io::Write, rc::Rc};
 
 use crate::{
+    constant::Constant,
     opcode::{Chunk, OpCode},
     value::{Continuation, Value},
 };
@@ -90,8 +91,8 @@ impl<'stdout> Vm<'stdout> {
             }
             Some(OpCode::Constant) => {
                 let index = self.continuation.code(1);
-                let value = self.continuation.constant(index).clone();
-                self.continuation.stack_mut().push(value);
+                let constant = self.continuation.constant(index).clone();
+                self.continuation.stack_mut().push(constant.into());
                 self.continuation.advance(2);
             }
             Some(OpCode::Add) => self.binop(|lhs, rhs| lhs + rhs),
@@ -100,9 +101,9 @@ impl<'stdout> Vm<'stdout> {
             Some(OpCode::Div) => self.binop(|lhs, rhs| lhs / rhs),
             Some(OpCode::GetGlobal) => {
                 let index = self.continuation.code(1);
-                let value = self.continuation.constant(index);
-                match value {
-                    Value::String(name) => {
+                let constant = self.continuation.constant(index);
+                match constant {
+                    Constant::String(name) => {
                         let value = self.global.definitions[name].clone();
                         self.continuation.stack_mut().push(value);
                         self.continuation.advance(2);
@@ -112,9 +113,9 @@ impl<'stdout> Vm<'stdout> {
             }
             Some(OpCode::SetGlobal) => {
                 let index = self.continuation.code(1);
-                let value = self.continuation.constant(index).clone();
-                match value {
-                    Value::String(name) => {
+                let constant = self.continuation.constant(index).clone();
+                match constant {
+                    Constant::String(name) => {
                         let value = self.continuation.stack_mut().pop().unwrap();
                         self.global.definitions.insert(name, value);
                         self.continuation.advance(2);
