@@ -114,3 +114,34 @@ foo();
 "#,
     );
 }
+
+#[test]
+fn test_capture_shared_local() {
+    run_test(
+        "test_capture_shared_local",
+        r#"
+fun main() {
+    var slot;
+
+    fun foo() {
+        print(slot);
+    }
+
+    fun bar() {
+        print(slot);
+    }
+
+    print(slot);
+    slot = 1;
+    foo();
+    bar();
+
+    slot = 2;
+    foo();
+    bar();
+}
+
+main();
+"#
+    );
+}
