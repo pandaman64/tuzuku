@@ -149,6 +149,9 @@ impl<'stdout> Vm<'stdout> {
                 self.continuation.stack_mut().set_local(offset, value);
                 self.continuation.advance(2);
             }
+            Some(OpCode::Closure) => {
+                self.continuation.perform_closure();
+            }
             Some(OpCode::CloseUpvalue) => todo!(),
             Some(OpCode::GetUpvalue) => todo!(),
             Some(OpCode::SetUpvalue) => todo!(),

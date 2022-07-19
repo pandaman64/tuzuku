@@ -33,6 +33,7 @@ pub(crate) enum OpCode {
     // Upvalue
     GetUpvalue,
     SetUpvalue,
+    Closure,
 }
 
 pub(crate) struct Chunk {
@@ -78,6 +79,29 @@ impl Chunk {
         Ok(2)
     }
 
+    fn print_closure(&self, writer: &mut dyn io::Write, offset: usize) -> io::Result<usize> {
+        // OP_CLOSURE is a variable-length opcode where
+        // | OP_CLOSURE | # of upvalues | (#1) true if values comes from local of the parent | (#1) the index in the local/upvalue | ... |
+        let upvalues = usize::from(self.code[offset + 1]);
+
+        writeln!(writer, " {:-14} | {}", "OP_CLOSURE", upvalues)?;
+        for i in 0..upvalues {
+            let is_local = self.code[offset + 1 + 2 * i] > 0;
+            let index = self.code[offset + 1 + 2 * i + 1];
+            writeln!(
+                writer,
+                " {:6} | {:4} | {:-14} | {} ({})",
+                "",
+                "",
+                "",
+                index,
+                if is_local { "local" } else { "upvalue" }
+            )?;
+        }
+
+        Ok(2 + 2 * upvalues)
+    }
+
     pub(crate) fn write(&self, name: &str, writer: &mut dyn io::Write) -> io::Result<()> {
         writeln!(writer, "==== {} ====", name)?;
         writeln!(writer, " offset | line | {:-14} | constants", "opcode")?;
@@ -110,6 +134,7 @@ impl Chunk {
                 Some(OpCode::SetUpvalue) => {
                     self.print_immediate(writer, offset, "OP_SET_UPVALUE")?
                 }
+                Some(OpCode::Closure) => self.print_closure(writer, offset)?,
             }
         }
         Ok(())

@@ -170,12 +170,10 @@ impl<'parent> Compiler<'parent> {
         }
     }
 
-    fn build(mut self, name: String) -> Function {
-        Function::new(
-            name,
-            Rc::new(self.builder.build()),
-            self.upvalues.into_inner().len(),
-        )
+    fn build(mut self, name: String) -> (Function, Vec<Upvalue>) {
+        let upvalues = self.upvalues.into_inner();
+        let function = Function::new(name, Rc::new(self.builder.build()), upvalues.len());
+        (function, upvalues)
     }
 
     fn begin_scope(&mut self) {
@@ -311,11 +309,27 @@ impl<'parent> Compiler<'parent> {
                 fun_compiler.end_scope(end_line);
                 fun_compiler.builder.push_op(OpCode::Nil, end_line);
                 fun_compiler.builder.push_op(OpCode::Return, end_line);
-                let function = fun_compiler.build(ident.into());
+                let (function, upvalues) = fun_compiler.build(ident.into());
 
                 let fun_const_index = self.builder.push_constant(Constant::Function(function));
                 self.builder.push_op(OpCode::Constant, start_line);
                 self.builder.push_u8(fun_const_index, start_line);
+
+                let upvalues_len = upvalues.len();
+                if upvalues_len > 0 {
+                    self.builder.push_op(OpCode::Closure, start_line);
+                    self.builder
+                        .push_u8(u8::try_from(upvalues_len).unwrap(), start_line);
+                    for upvalue in upvalues.iter() {
+                        let (is_local, index) = match *upvalue {
+                            Upvalue::InLocal { index } => (1, index),
+                            Upvalue::InUpvalue { index } => (0, index),
+                        };
+                        self.builder.push_u8(is_local, start_line);
+                        self.builder.push_u8(index, start_line);
+                    }
+                }
+
                 self.emit_set(ident, start_line);
             }
             AstBody::Call { callee, arguments } => {
@@ -340,5 +354,5 @@ pub(crate) fn compile(name: String, ast: Ast<'_>, mapper: &LineMapper) -> Functi
     compiler.push(ast, mapper);
     // TODO: ここにend_scopeが必要なのが気に食わない
     compiler.end_scope(mapper.find(ast.span.end));
-    compiler.build(name)
+    compiler.build(name).0
 }

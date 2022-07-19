@@ -99,21 +99,20 @@ impl Stack {
         self.check();
     }
 
-    pub(crate) fn get_local(&self, offset: u8) -> Value {
+    fn get_local_ptr(&self, offset: u8) -> NonNull<Option<Value>> {
         self.check();
 
         let index = self.fp + usize::from(offset);
         assert!(index < self.sp);
 
         // SAFETY: self.check() ensures that self.sp points to inside the stack,
-        // and index is less than self.sp, so we can dereference at index.
-        unsafe {
-            self.values
-                .get_unchecked_mut(index)
-                .as_ref()
-                .clone()
-                .unwrap()
-        }
+        // and index is less than self.sp, so we can point to the index.
+        unsafe { self.values.get_unchecked_mut(index) }
+    }
+
+    pub(crate) fn get_local(&self, offset: u8) -> Value {
+        // SAFETY: self.get_local_ptr() returns a pointer to a valid stack slot.
+        unsafe { self.get_local_ptr(offset).as_ref().clone().unwrap() }
     }
 
     pub(crate) fn set_local(&mut self, offset: u8, value: Value) {
@@ -233,6 +232,45 @@ impl Continuation {
             _ => todo!("The return continuation is not a continuation"),
         }
     }
+
+    /// Get the pointer to the object held by the current function's upvalue at the index.
+    fn get_upvalue_ptr(&self, index: u8) -> NonNull<Option<Value>> {
+        // TODO: the assumption of safety is that the upvalues stored in the closure are valid.
+        unsafe {
+            let closure = self.closure();
+            let upvalues = closure.upvalues().get_unchecked_mut(usize::from(index));
+            upvalues.as_ref().as_ref().pointer
+        }
+    }
+
+    /// Create a closure on stack.
+    pub(crate) fn perform_closure(&mut self) {
+        let function = match self.stack.pop().unwrap() {
+            Value::Function(function) => function,
+            _ => todo!("type error: OP_CLOSURE takes function"),
+        };
+
+        let upvalues_len = usize::from(self.code(1));
+        let upvalues: Box<[NonNull<Upvalue>]> = (0..upvalues_len)
+            .map(|idx| {
+                let is_local = self.code(1 + 2 * idx) > 0;
+                let index = self.code(1 + 2 * idx + 1);
+                let pointer = if is_local {
+                    self.stack.get_local_ptr(index)
+                } else {
+                    self.get_upvalue_ptr(index)
+                };
+                // TODO: link and cache upvalues
+                LEAKING_ALLOCATOR.alloc(Upvalue::open(None, pointer))
+            })
+            .collect();
+        // SAFETY: the pointer is valid.
+        let upvalues = unsafe { NonNull::new_unchecked(Box::into_raw(upvalues)) };
+        let closure =
+            Value::Closure(LEAKING_ALLOCATOR.alloc(Closure::capturing(function, upvalues)));
+        self.stack.push(closure);
+        self.advance(2 + 2 * upvalues_len);
+    }
 }
 
 /// The run-time representation of a function.
@@ -282,12 +320,21 @@ pub(crate) struct Upvalue {
     ///
     /// It points to either a slot in a stack or closed of self.
     /// TODO: is it okay to use self-referential pointer?
-    pointer: *mut Option<Value>,
+    pointer: NonNull<Option<Value>>,
     /// The place to store the closed upvalue.
     closed: Option<Value>,
 }
 
 impl Upvalue {
+    /// Create a new open upvalue.
+    pub(crate) fn open(next: Option<NonNull<Upvalue>>, pointer: NonNull<Option<Value>>) -> Self {
+        Self {
+            next,
+            pointer,
+            closed: None,
+        }
+    }
+
     fn is_closed(&self) -> bool {
         self.closed.is_none()
     }
@@ -295,7 +342,7 @@ impl Upvalue {
 
 pub(crate) struct Closure {
     function: Function,
-    upvalues: NonNull<[Upvalue]>,
+    upvalues: NonNull<[NonNull<Upvalue>]>,
 }
 
 impl Closure {
@@ -309,7 +356,7 @@ impl Closure {
         }
     }
 
-    pub(crate) fn capturing(function: Function, upvalues: NonNull<[Upvalue]>) -> Self {
+    pub(crate) fn capturing(function: Function, upvalues: NonNull<[NonNull<Upvalue>]>) -> Self {
         Self { function, upvalues }
     }
 
@@ -317,7 +364,7 @@ impl Closure {
         &self.function
     }
 
-    pub(crate) fn upvalues(&self) -> NonNull<[Upvalue]> {
+    pub(crate) fn upvalues(&self) -> NonNull<[NonNull<Upvalue>]> {
         self.upvalues
     }
 }
