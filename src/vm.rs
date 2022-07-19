@@ -152,9 +152,23 @@ impl<'stdout> Vm<'stdout> {
             Some(OpCode::Closure) => {
                 self.continuation.perform_closure();
             }
-            Some(OpCode::CloseUpvalue) => todo!(),
-            Some(OpCode::GetUpvalue) => todo!(),
-            Some(OpCode::SetUpvalue) => todo!(),
+            Some(OpCode::CloseUpvalue) => {
+                // TODO: implement properly
+                self.continuation.stack_mut().pop().unwrap();
+                self.continuation.advance(1);
+            },
+            Some(OpCode::GetUpvalue) => {
+                let offset = self.continuation.code(1);
+                let value = self.continuation.get_upvalue(offset);
+                self.continuation.stack_mut().push(value);
+                self.continuation.advance(2);
+            }
+            Some(OpCode::SetUpvalue) => {
+                let offset = self.continuation.code(1);
+                let value = self.continuation.stack_mut().pop().unwrap();
+                self.continuation.set_upvalue(offset, value);
+                self.continuation.advance(2);
+            }
         }
     }
 }

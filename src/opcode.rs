@@ -52,7 +52,7 @@ impl Chunk {
     }
 
     fn print_simple(&self, writer: &mut dyn io::Write, name: &str) -> io::Result<usize> {
-        writeln!(writer, " {:-14} |", name)?;
+        writeln!(writer, " {:-16} |", name)?;
         Ok(1)
     }
 
@@ -64,7 +64,7 @@ impl Chunk {
     ) -> io::Result<usize> {
         let index = self.code[offset + 1];
         let constant = &self.constants[usize::from(index)];
-        writeln!(writer, " {:-14} | {}", name, constant.display())?;
+        writeln!(writer, " {:-16} | {}", name, constant.display())?;
         Ok(2)
     }
 
@@ -75,7 +75,7 @@ impl Chunk {
         name: &str,
     ) -> io::Result<usize> {
         let immediate = self.code[offset + 1];
-        writeln!(writer, " {:-14} | {}", name, immediate)?;
+        writeln!(writer, " {:-16} | {}", name, immediate)?;
         Ok(2)
     }
 
@@ -84,13 +84,13 @@ impl Chunk {
         // | OP_CLOSURE | # of upvalues | (#1) true if values comes from local of the parent | (#1) the index in the local/upvalue | ... |
         let upvalues = usize::from(self.code[offset + 1]);
 
-        writeln!(writer, " {:-14} | {}", "OP_CLOSURE", upvalues)?;
+        writeln!(writer, " {:-16} | {}", "OP_CLOSURE", upvalues)?;
         for i in 0..upvalues {
             let is_local = self.code[offset + 1 + 2 * i] > 0;
             let index = self.code[offset + 1 + 2 * i + 1];
             writeln!(
                 writer,
-                " {:6} | {:4} | {:-14} | {} ({})",
+                " {:6} | {:4} | {:-16} | {} ({})",
                 "",
                 "",
                 "",
@@ -104,7 +104,7 @@ impl Chunk {
 
     pub(crate) fn write(&self, name: &str, writer: &mut dyn io::Write) -> io::Result<()> {
         writeln!(writer, "==== {} ====", name)?;
-        writeln!(writer, " offset | line | {:-14} | constants", "opcode")?;
+        writeln!(writer, " offset | line | {:-16} | constants", "opcode")?;
         let mut offset = 0;
         while offset < self.code.len() {
             write!(writer, " {:06} | {:04} |", offset, self.lines[offset])?;

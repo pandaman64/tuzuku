@@ -235,11 +235,35 @@ impl Continuation {
 
     /// Get the pointer to the object held by the current function's upvalue at the index.
     fn get_upvalue_ptr(&self, index: u8) -> NonNull<Option<Value>> {
-        // TODO: the assumption of safety is that the upvalues stored in the closure are valid.
+        let index = usize::from(index);
+        // TODO: the assumption of safety is that the upvalues stored in the closure are valid,
+        // and the index is in-bounds.
         unsafe {
             let closure = self.closure();
-            let upvalues = closure.upvalues().get_unchecked_mut(usize::from(index));
+            assert!(index < closure.function.upvalues);
+            let upvalues = closure.upvalues().get_unchecked_mut(index);
             upvalues.as_ref().as_ref().pointer
+        }
+    }
+
+    pub(crate) fn get_upvalue(&self, index: u8) -> Value {
+        // TODO: the assumption of safety is that the upvalues stored in the closure are valid,
+        // and the index is in-bounds.
+        unsafe {
+            self.get_upvalue_ptr(index)
+                .as_ref()
+                .as_ref()
+                .unwrap()
+                .clone()
+        }
+    }
+
+    pub(crate) fn set_upvalue(&mut self, index: u8, value: Value) {
+        let mut pointer = self.get_upvalue_ptr(index);
+        // TODO: the assumption of safety is that the upvalues stored in the closure are valid,
+        // and the index is in-bounds.
+        unsafe {
+            *pointer.as_mut() = Some(value);
         }
     }
 

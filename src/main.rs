@@ -35,21 +35,17 @@ fn print_errors(_: &str, errors: Vec<Simple<char>>, mapper: &LineMapper) {
 fn main() {
     let source = r#"
 fun foo() {
-    var variable = 100;
-    print(variable);
-    variable = "foo";
-    print(variable);
-}
-
-fun bar() {
-    var uninitialized;
-    print(uninitialized);
-    uninitialized = "initialized";
-    print(uninitialized);
+    var foo1 = 100;
+    var foo2 = 200;
+    fun bar() {
+        var bar1 = 300;
+        print(foo2);
+        print(bar1);
+    }
+    bar();
 }
 
 foo();
-bar();
 "#
     .to_string();
     println!("source = {}", source);
