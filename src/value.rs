@@ -1,4 +1,7 @@
-use std::{ptr::NonNull, rc::Rc};
+use std::{
+    ptr::{addr_of, addr_of_mut, NonNull},
+    rc::Rc,
+};
 
 use crate::{
     allocator::LEAKING_ALLOCATOR,
@@ -133,6 +136,8 @@ pub(crate) struct Continuation {
     ip: usize,
     /// The value stack
     stack: Stack,
+    /// The head pointer of the list of the open upvalues.
+    open_upvalues_head: Option<NonNull<Upvalue>>,
 }
 
 impl Continuation {
@@ -145,6 +150,7 @@ impl Continuation {
             closure,
             stack: Stack::empty(),
             ip: 0,
+            open_upvalues_head: None,
         }
     }
 
@@ -234,7 +240,7 @@ impl Continuation {
     }
 
     /// Get the pointer to the object held by the current function's upvalue at the index.
-    fn get_upvalue_ptr(&self, index: u8) -> NonNull<Option<Value>> {
+    fn get_upvalue_value_ptr(&self, index: u8) -> NonNull<Option<Value>> {
         let index = usize::from(index);
         // TODO: the assumption of safety is that the upvalues stored in the closure are valid,
         // and the index is in-bounds.
@@ -250,7 +256,7 @@ impl Continuation {
         // TODO: the assumption of safety is that the upvalues stored in the closure are valid,
         // and the index is in-bounds.
         unsafe {
-            self.get_upvalue_ptr(index)
+            self.get_upvalue_value_ptr(index)
                 .as_ref()
                 .as_ref()
                 .unwrap()
@@ -259,12 +265,52 @@ impl Continuation {
     }
 
     pub(crate) fn set_upvalue(&mut self, index: u8, value: Value) {
-        let mut pointer = self.get_upvalue_ptr(index);
+        let mut pointer = self.get_upvalue_value_ptr(index);
         // TODO: the assumption of safety is that the upvalues stored in the closure are valid,
         // and the index is in-bounds.
         unsafe {
             *pointer.as_mut() = Some(value);
         }
+    }
+
+    /// Get or create upvalue pointing to the stack.
+    ///
+    /// The upvalues are sorted by the order of the pointer to the stack slot
+    /// (the greatest one comes first).
+    /// When an upvalue with the same stack index is found, returns it.
+    /// When not found, a new upvalue is inserted into the appropriate place and returned.
+    fn get_or_create_upvalue_to_stack(&mut self, index: u8) -> NonNull<Upvalue> {
+        let pointer = self.stack.get_local_ptr(index);
+
+        let mut prev = None;
+        let mut current = self.open_upvalues_head;
+
+        while let Some(current_ptr) = current {
+            // SAFETY: the upvalues in the open-upvalues list are valid
+            unsafe {
+                let current_ref = current_ptr.as_ref();
+                match current_ref.pointer.cmp(&pointer) {
+                    std::cmp::Ordering::Less => break,
+                    std::cmp::Ordering::Equal => return current_ptr,
+                    std::cmp::Ordering::Greater => {
+                        prev = Some(current_ptr);
+                        current = current_ref.next;
+                    }
+                }
+            }
+        }
+
+        let new_upvalue = LEAKING_ALLOCATOR.alloc(Upvalue::open(current, pointer));
+        match prev {
+            // SAFETY: the upvalues in the open-upvalues list are valid
+            Some(mut prev) => unsafe {
+                prev.as_mut().next = Some(new_upvalue);
+            },
+            None => {
+                self.open_upvalues_head = Some(new_upvalue);
+            }
+        }
+        new_upvalue
     }
 
     /// Create a closure on stack.
@@ -279,13 +325,18 @@ impl Continuation {
             .map(|idx| {
                 let is_local = self.code(2 + 2 * idx) > 0;
                 let index = self.code(2 + 2 * idx + 1);
-                let pointer = if is_local {
-                    self.stack.get_local_ptr(index)
+                if is_local {
+                    self.get_or_create_upvalue_to_stack(index)
                 } else {
-                    self.get_upvalue_ptr(index)
-                };
-                // TODO: link and cache upvalues
-                LEAKING_ALLOCATOR.alloc(Upvalue::open(None, pointer))
+                    // TODO: assuming the upvalues are all valid.
+                    unsafe {
+                        // this closure must be valid.
+                        let closure = self.closure.as_ref();
+                        let index = usize::from(index);
+                        assert!(index < closure.upvalues.len());
+                        *closure.upvalues.get_unchecked_mut(index).as_ptr()
+                    }
+                }
             })
             .collect();
         // SAFETY: the pointer is valid.
@@ -294,6 +345,37 @@ impl Continuation {
             Value::Closure(LEAKING_ALLOCATOR.alloc(Closure::capturing(function, upvalues)));
         self.stack.push(closure);
         self.advance(2 + 2 * upvalues_len);
+    }
+
+    pub(crate) fn perform_close_upvalue(&mut self) {
+        let value = self.stack.pop().unwrap();
+        // SAFETY: the stack pointer is pointing to a valid slot
+        let pointer = unsafe { self.stack.values.get_unchecked_mut(self.stack.sp) };
+
+        if let Some(head) = self.open_upvalues_head {
+            let head = head.as_ptr();
+            unsafe {
+                match addr_of!((*head).pointer).read().cmp(&pointer) {
+                    std::cmp::Ordering::Less => {}
+                    std::cmp::Ordering::Equal => {
+                        let pointer_to_closed = addr_of_mut!((*head).closed);
+                        // write value to closed
+                        assert!(std::mem::replace(&mut *pointer_to_closed, Some(value)).is_none());
+                        // update pointer to point to its closed
+                        addr_of_mut!((*head).pointer)
+                            .write(NonNull::new_unchecked(pointer_to_closed));
+                        // unlink the upvalue and update head
+                        let next = std::mem::replace(&mut *addr_of_mut!((*head).next), None);
+                        self.open_upvalues_head = next;
+                    }
+                    std::cmp::Ordering::Greater => {
+                        unreachable!("open_upvalues_head must point to a valid stack slot.")
+                    }
+                }
+            }
+        }
+
+        self.advance(1);
     }
 }
 
@@ -328,10 +410,6 @@ impl Function {
     pub(crate) fn chunk(&self) -> &Chunk {
         &self.chunk
     }
-
-    pub(crate) fn upvalues(&self) -> usize {
-        self.upvalues
-    }
 }
 
 /// The run-time representation of upvalues.
@@ -351,7 +429,7 @@ pub(crate) struct Upvalue {
 
 impl Upvalue {
     /// Create a new open upvalue.
-    pub(crate) fn open(next: Option<NonNull<Upvalue>>, pointer: NonNull<Option<Value>>) -> Self {
+    fn open(next: Option<NonNull<Upvalue>>, pointer: NonNull<Option<Value>>) -> Self {
         Self {
             next,
             pointer,
@@ -359,9 +437,9 @@ impl Upvalue {
         }
     }
 
-    fn is_closed(&self) -> bool {
-        self.closed.is_none()
-    }
+    // fn is_closed(&self) -> bool {
+    //     self.closed.is_none()
+    // }
 }
 
 pub(crate) struct Closure {
@@ -402,7 +480,7 @@ pub(crate) enum Value {
     Function(Function),
     Closure(NonNull<Closure>),
     Return(Continuation),
-    Upvalue(NonNull<Upvalue>),
+    // Upvalue(NonNull<Upvalue>),
 }
 
 impl Value {
@@ -419,16 +497,16 @@ impl Value {
             },
             Value::Return(continuation) => format!("<return {}>", continuation.display()),
             // TODO: This is not safe...
-            Value::Upvalue(upvalue) => unsafe {
-                format!(
-                    "<upvalue {}>",
-                    if upvalue.as_ref().is_closed() {
-                        "closed"
-                    } else {
-                        "open"
-                    }
-                )
-            },
+            // Value::Upvalue(upvalue) => unsafe {
+            //     format!(
+            //         "<upvalue {}>",
+            //         if upvalue.as_ref().is_closed() {
+            //             "closed"
+            //         } else {
+            //             "open"
+            //         }
+            //     )
+            // },
         }
     }
 }
