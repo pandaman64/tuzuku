@@ -1,9 +1,10 @@
-use std::{collections::HashMap, io::Write, rc::Rc};
+use std::{collections::HashMap, io::Write};
 
 use crate::{
-    constant::Constant,
-    opcode::{Chunk, OpCode},
-    value::{Continuation, Value},
+    allocator::LEAKING_ALLOCATOR,
+    constant::{self, Constant},
+    opcode::OpCode,
+    value::{Closure, Continuation, Value},
 };
 
 use num_traits::FromPrimitive;
@@ -21,9 +22,16 @@ pub(crate) struct Vm<'stdout> {
 }
 
 impl<'stdout> Vm<'stdout> {
-    pub(crate) fn new(chunk: Chunk, stdout: &'stdout mut (dyn Write + 'stdout)) -> Self {
+    pub(crate) fn initial(
+        function: constant::Function,
+        stdout: &'stdout mut (dyn Write + 'stdout),
+    ) -> Self {
+        // SAFETY: We pass a valid continuation object.
+        let continuation = unsafe {
+            Continuation::initial(LEAKING_ALLOCATOR.alloc(Closure::free(function.into())))
+        };
         Vm {
-            continuation: Continuation::initial(Rc::new(chunk)),
+            continuation,
             global: Global::default(),
             stdout,
         }
@@ -50,7 +58,14 @@ impl<'stdout> Vm<'stdout> {
 
     fn call(&mut self, arguments_len: u8) {
         let callee = self.continuation.call(arguments_len);
-        callee.chunk().write(callee.name(), self.stdout).unwrap();
+        // TODO: the safety of this block relies on the validity of the callee in the stack.
+        unsafe {
+            let function = callee.as_ref().function();
+            function
+                .chunk()
+                .write(function.name(), self.stdout)
+                .unwrap();
+        }
     }
 
     pub(crate) fn step(&mut self) {
@@ -73,7 +88,6 @@ impl<'stdout> Vm<'stdout> {
                 self.continuation.stack_mut().pop().unwrap();
                 self.continuation.advance(1);
             }
-            Some(OpCode::CloseUpvalue) => todo!(),
             Some(OpCode::Print) => {
                 let value = self.continuation.stack_mut().pop().unwrap();
                 writeln!(self.stdout, "{}", value.display()).unwrap();
@@ -135,6 +149,7 @@ impl<'stdout> Vm<'stdout> {
                 self.continuation.stack_mut().set_local(offset, value);
                 self.continuation.advance(2);
             }
+            Some(OpCode::CloseUpvalue) => todo!(),
             Some(OpCode::GetUpvalue) => todo!(),
             Some(OpCode::SetUpvalue) => todo!(),
         }

@@ -1,6 +1,10 @@
 use std::{ptr::NonNull, rc::Rc};
 
-use crate::{allocator::LEAKING_ALLOCATOR, constant::Constant, opcode::Chunk};
+use crate::{
+    allocator::LEAKING_ALLOCATOR,
+    constant::{self, Constant},
+    opcode::Chunk,
+};
 
 const STACK_SIZE: usize = 1024;
 
@@ -120,8 +124,12 @@ impl Stack {
 
 #[derive(Clone)]
 pub(crate) struct Continuation {
-    /// The chunk to execute.
-    chunk: Rc<Chunk>,
+    /// The closure to execute.
+    ///
+    /// # Invariant
+    /// The closure must be valid indefinitely.
+    /// TODO: GC will destory and reclaim the closure once implemented.
+    closure: NonNull<Closure>,
     /// The instruction pointer.
     ip: usize,
     /// The value stack
@@ -130,12 +138,28 @@ pub(crate) struct Continuation {
 
 impl Continuation {
     /// Create a continuation at the start of running the program.
-    pub(crate) fn initial(chunk: Rc<Chunk>) -> Self {
+    ///
+    /// # Safety
+    /// The given closure must be valid which is the assumption of the rest of methods.
+    pub(crate) unsafe fn initial(closure: NonNull<Closure>) -> Self {
         Self {
-            chunk,
+            closure,
             stack: Stack::empty(),
             ip: 0,
         }
+    }
+
+    fn closure(&self) -> &Closure {
+        // SAFETY: the requirement of the constructor permits this read.
+        unsafe { self.closure.as_ref() }
+    }
+
+    fn function(&self) -> &Function {
+        &self.closure().function
+    }
+
+    fn chunk(&self) -> &Chunk {
+        &self.function().chunk
     }
 
     pub(crate) fn stack_mut(&mut self) -> &mut Stack {
@@ -143,7 +167,7 @@ impl Continuation {
     }
 
     pub(crate) fn code(&self, increment: usize) -> u8 {
-        self.chunk.code()[self.ip + increment]
+        self.chunk().code()[self.ip + increment]
     }
 
     pub(crate) fn current_code(&self) -> u8 {
@@ -151,11 +175,11 @@ impl Continuation {
     }
 
     pub(crate) fn constant(&self, index: u8) -> &Constant {
-        &self.chunk.constants()[usize::from(index)]
+        &self.chunk().constants()[usize::from(index)]
     }
 
     pub(crate) fn done(&self) -> bool {
-        self.ip >= self.chunk.code().len()
+        self.ip >= self.chunk().code().len()
     }
 
     pub(crate) fn advance(&mut self, increment: usize) {
@@ -170,23 +194,25 @@ impl Continuation {
     }
 
     /// Call a function on the top of the stack.
-    pub(crate) fn call(&mut self, arguments_len: u8) -> Function {
+    pub(crate) fn call(&mut self, arguments_len: u8) -> NonNull<Closure> {
         // NOTE: the stack pointer of the return_continuation is invalid when we return from the function.
         // But, perform_return() adjust it when we actually return to the callee.
         let return_continuation = Value::Return(self.clone());
         let callee_index = self.stack.sp - usize::from(arguments_len) - 1;
         let callee = self.stack.replace_at(callee_index, return_continuation);
-        match callee {
-            Value::Function(callee) => {
-                // Jump to the start of the given chunk.
-                self.chunk = callee.chunk.clone();
-                self.ip = 0;
-                // Shift the frame pointer (stack pointer remains same).
-                self.stack.fp = callee_index;
-                callee
-            }
-            _ => todo!("callee is not a function"),
-        }
+        let closure = match callee {
+            Value::Function(function) => LEAKING_ALLOCATOR.alloc(Closure::free(function)),
+            Value::Closure(closure) => closure,
+            _ => todo!("callee is not a function nor a closure"),
+        };
+
+        // Jump to the start of the given chunk.
+        self.closure = closure;
+        self.ip = 0;
+        // Shift the frame pointer (stack pointer remains same).
+        self.stack.fp = callee_index;
+
+        closure
     }
 
     /// Run the return procedure.
@@ -209,15 +235,28 @@ impl Continuation {
     }
 }
 
+/// The run-time representation of a function.
 #[derive(Clone)]
 pub(crate) struct Function {
     name: String,
     chunk: Rc<Chunk>,
+    /// The number of upvalues.
+    upvalues: usize,
+}
+
+impl From<constant::Function> for Function {
+    fn from(function: constant::Function) -> Self {
+        Self::new(function.name, function.chunk, function.upvalues)
+    }
 }
 
 impl Function {
-    pub(crate) fn new(name: String, chunk: Rc<Chunk>) -> Self {
-        Self { name, chunk }
+    pub(crate) fn new(name: String, chunk: Rc<Chunk>, upvalues: usize) -> Self {
+        Self {
+            name,
+            chunk,
+            upvalues,
+        }
     }
 
     pub(crate) fn name(&self) -> &str {
@@ -226,6 +265,60 @@ impl Function {
 
     pub(crate) fn chunk(&self) -> &Chunk {
         &self.chunk
+    }
+
+    pub(crate) fn upvalues(&self) -> usize {
+        self.upvalues
+    }
+}
+
+/// The run-time representation of upvalues.
+pub(crate) struct Upvalue {
+    /// The pointer to the next upvalue.
+    ///
+    /// The next upvalue must point to a slot in the same stack that has smaller index than this (next.pointer < pointer).
+    next: Option<NonNull<Upvalue>>,
+    /// The pointer to the pointed value.
+    ///
+    /// It points to either a slot in a stack or closed of self.
+    /// TODO: is it okay to use self-referential pointer?
+    pointer: *mut Option<Value>,
+    /// The place to store the closed upvalue.
+    closed: Option<Value>,
+}
+
+impl Upvalue {
+    fn is_closed(&self) -> bool {
+        self.closed.is_none()
+    }
+}
+
+pub(crate) struct Closure {
+    function: Function,
+    upvalues: NonNull<[Upvalue]>,
+}
+
+impl Closure {
+    /// Create a closure that does not capture any upvalues.
+    pub(crate) fn free(function: Function) -> Self {
+        assert_eq!(function.upvalues, 0);
+
+        Self {
+            function,
+            upvalues: LEAKING_ALLOCATOR.alloc_empty_array(),
+        }
+    }
+
+    pub(crate) fn capturing(function: Function, upvalues: NonNull<[Upvalue]>) -> Self {
+        Self { function, upvalues }
+    }
+
+    pub(crate) fn function(&self) -> &Function {
+        &self.function
+    }
+
+    pub(crate) fn upvalues(&self) -> NonNull<[Upvalue]> {
+        self.upvalues
     }
 }
 
@@ -236,7 +329,9 @@ pub(crate) enum Value {
     Number(f64),
     String(String),
     Function(Function),
+    Closure(NonNull<Closure>),
     Return(Continuation),
+    Upvalue(NonNull<Upvalue>),
 }
 
 impl Value {
@@ -247,7 +342,22 @@ impl Value {
             Value::Number(n) => n.to_string(),
             Value::String(s) => s.clone(),
             Value::Function(Function { name, .. }) => format!("<function {}>", name),
+            // TODO: This is not safe...
+            Value::Closure(closure) => unsafe {
+                format!("<closure {}>", closure.as_ref().function.name)
+            },
             Value::Return(continuation) => format!("<return {}>", continuation.display()),
+            // TODO: This is not safe...
+            Value::Upvalue(upvalue) => unsafe {
+                format!(
+                    "<upvalue {}>",
+                    if upvalue.as_ref().is_closed() {
+                        "closed"
+                    } else {
+                        "open"
+                    }
+                )
+            },
         }
     }
 }
@@ -257,7 +367,7 @@ impl From<Constant> for Value {
         match constant {
             Constant::Number(n) => Value::Number(n),
             Constant::String(s) => Value::String(s),
-            Constant::Function(f) => Value::Function(f),
+            Constant::Function(f) => Value::Function(f.into()),
         }
     }
 }

@@ -14,4 +14,9 @@ impl LeakingAllocator {
         // SAFETY: Box::into_raw returns non-null pointer
         unsafe { NonNull::new_unchecked(Box::into_raw(vec![init; num].into_boxed_slice())) }
     }
+
+    pub(crate) fn alloc_empty_array<T>(&self) -> NonNull<[T]> {
+        // SAFETY: Box::into_raw returns non-null pointer
+        unsafe { NonNull::new_unchecked(Box::into_raw(vec![].into_boxed_slice())) }
+    }
 }

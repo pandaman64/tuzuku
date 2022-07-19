@@ -26,11 +26,11 @@ impl<'stdout> Driver<'stdout> {
         let mapper = LineMapper::new(&self.source);
         match parser.parse(self.source.as_str()) {
             Ok(ast) => {
-                let compiled = compiler::compile(ast, &mapper);
-                (self.chunk_callback)(&self.file_name, &compiled, self.stdout).unwrap();
+                let compiled = compiler::compile("initial code".into(), ast, &mapper);
+                (self.chunk_callback)(&self.file_name, &compiled.chunk, self.stdout).unwrap();
 
                 if self.run {
-                    let mut vm = Vm::new(compiled, self.stdout);
+                    let mut vm = Vm::initial(compiled, self.stdout);
                     while !vm.done() {
                         vm.step();
                     }

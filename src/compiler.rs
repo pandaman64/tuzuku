@@ -5,10 +5,9 @@ use std::{
 
 use crate::{
     ast::{Ast, AstBody},
-    constant::Constant,
-    opcode::{Chunk, ChunkBuilder, OpCode},
+    constant::{Constant, Function},
+    opcode::{ChunkBuilder, OpCode},
     parser::LineMapper,
-    value::Function,
 };
 
 struct Local {
@@ -171,8 +170,12 @@ impl<'parent> Compiler<'parent> {
         }
     }
 
-    fn build(mut self) -> Chunk {
-        self.builder.build()
+    fn build(mut self, name: String) -> Function {
+        Function::new(
+            name,
+            Rc::new(self.builder.build()),
+            self.upvalues.into_inner().len(),
+        )
     }
 
     fn begin_scope(&mut self) {
@@ -300,7 +303,6 @@ impl<'parent> Compiler<'parent> {
                 parameters,
                 body,
             } => {
-                // TODO: end scope
                 let mut fun_compiler = Compiler::with_parent(parameters, self);
                 for stmt in body.iter() {
                     fun_compiler.push(*stmt, mapper);
@@ -309,11 +311,9 @@ impl<'parent> Compiler<'parent> {
                 fun_compiler.end_scope(end_line);
                 fun_compiler.builder.push_op(OpCode::Nil, end_line);
                 fun_compiler.builder.push_op(OpCode::Return, end_line);
-                let fun_chunk = fun_compiler.build();
+                let function = fun_compiler.build(ident.into());
 
-                let fun_const_index = self.builder.push_constant(Constant::Function(
-                    Function::new(ident.into(), Rc::new(fun_chunk)),
-                ));
+                let fun_const_index = self.builder.push_constant(Constant::Function(function));
                 self.builder.push_op(OpCode::Constant, start_line);
                 self.builder.push_u8(fun_const_index, start_line);
                 self.emit_set(ident, start_line);
@@ -335,10 +335,10 @@ impl<'parent> Compiler<'parent> {
     }
 }
 
-pub(crate) fn compile(ast: Ast<'_>, mapper: &LineMapper) -> Chunk {
+pub(crate) fn compile(name: String, ast: Ast<'_>, mapper: &LineMapper) -> Function {
     let mut compiler = Compiler::default();
     compiler.push(ast, mapper);
     // TODO: ここにend_scopeが必要なのが気に食わない
     compiler.end_scope(mapper.find(ast.span.end));
-    compiler.build()
+    compiler.build(name)
 }

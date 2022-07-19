@@ -1,4 +1,5 @@
 #![feature(slice_ptr_get, slice_ptr_len)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 use std::io::{self, Write};
 

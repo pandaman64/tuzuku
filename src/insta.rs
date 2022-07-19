@@ -93,3 +93,23 @@ bar();
 "#,
     );
 }
+
+#[test]
+fn test_capture_no_escape() {
+    run_test(
+        "test_capture_no_escape",
+        r#"
+fun foo() {
+    var var1 = 100;
+    fun bar() {
+        var var2 = 200;
+        print(var1);
+        print(var2);
+    }
+    bar();
+}
+
+foo();
+"#,
+    );
+}
