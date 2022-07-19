@@ -5,6 +5,7 @@ use chumsky::{
     text::{ident, int, keyword, TextParser},
     Parser,
 };
+#[cfg(not(miri))]
 use once_cell::sync::Lazy;
 use typed_arena::Arena;
 
@@ -57,17 +58,25 @@ defg"#;
     }
 }
 
-fn allowed_ident() -> impl Parser<char, String, Error = Simple<char>> + Clone + Copy {
-    static KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-        let mut keywords = HashSet::new();
-        keywords.insert("var");
-        keywords.insert("fun");
-        keywords.insert("print");
-        keywords
-    });
+fn generate_keyword_set() -> HashSet<&'static str> {
+    let mut keywords = HashSet::new();
+    keywords.insert("var");
+    keywords.insert("fun");
+    keywords.insert("print");
+    keywords
+}
 
-    ident().try_map(|ident: String, span| {
-        if !KEYWORDS.contains(ident.as_str()) {
+fn allowed_ident() -> impl Parser<char, String, Error = Simple<char>> + Clone {
+    // TODO: once_cell uses pointer-to-integer cast which miri does not like
+    #[cfg(not(miri))]
+    static KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(generate_keyword_set);
+    #[cfg(not(miri))]
+    let keywords = &KEYWORDS;
+    #[cfg(miri)]
+    let keywords = generate_keyword_set();
+
+    ident().try_map(move |ident: String, span| {
+        if !keywords.contains(ident.as_str()) {
             Ok(ident)
         } else {
             Err(Simple::custom(
