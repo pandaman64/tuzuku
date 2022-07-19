@@ -86,13 +86,11 @@ impl Chunk {
 
         writeln!(writer, " {:-16} | {}", "OP_CLOSURE", upvalues)?;
         for i in 0..upvalues {
-            let is_local = self.code[offset + 1 + 2 * i] > 0;
-            let index = self.code[offset + 1 + 2 * i + 1];
+            let is_local = self.code[offset + 2 + 2 * i] > 0;
+            let index = self.code[offset + 2 + 2 * i + 1];
             writeln!(
                 writer,
-                " {:6} | {:4} | {:-16} | {} ({})",
-                "",
-                "",
+                "        |      | {:-16} | {} ({})",
                 "",
                 index,
                 if is_local { "local" } else { "upvalue" }

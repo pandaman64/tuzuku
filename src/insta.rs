@@ -100,11 +100,12 @@ fn test_capture_no_escape() {
         "test_capture_no_escape",
         r#"
 fun foo() {
-    var var1 = 100;
+    var foo1 = 100;
+    var foo2 = 200;
     fun bar() {
-        var var2 = 200;
-        print(var1);
-        print(var2);
+        var bar1 = 300;
+        print(foo2);
+        print(bar1);
     }
     bar();
 }

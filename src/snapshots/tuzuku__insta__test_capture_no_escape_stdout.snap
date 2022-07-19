@@ -8,28 +8,32 @@ expression: "String::from_utf8_lossy(&stdout)"
  000000 | 0003 | OP_NIL           |
  000001 | 0003 | OP_CONSTANT      | 100
  000003 | 0003 | OP_SET_LOCAL     | 1
- 000005 | 0004 | OP_CONSTANT      | <function bar>
- 000007 | 0004 | OP_CLOSURE       | 1
-        |      |                  | 1 (local)
- 000011 | 0004 | OP_SET_GLOBAL    | bar
- 000013 | 0009 | OP_GET_GLOBAL    | bar
- 000015 | 0009 | OP_CALL          | 0
- 000017 | 0009 | OP_POP           |
- 000018 | 0010 | OP_CLOSE_UPVALUE |
- 000019 | 0010 | OP_NIL           |
- 000020 | 0010 | OP_RETURN        |
+ 000005 | 0004 | OP_NIL           |
+ 000006 | 0004 | OP_CONSTANT      | 200
+ 000008 | 0004 | OP_SET_LOCAL     | 2
+ 000010 | 0005 | OP_CONSTANT      | <function bar>
+ 000012 | 0005 | OP_CLOSURE       | 1
+        |      |                  | 2 (local)
+ 000016 | 0005 | OP_SET_GLOBAL    | bar
+ 000018 | 0010 | OP_GET_GLOBAL    | bar
+ 000020 | 0010 | OP_CALL          | 0
+ 000022 | 0010 | OP_POP           |
+ 000023 | 0011 | OP_CLOSE_UPVALUE |
+ 000024 | 0011 | OP_POP           |
+ 000025 | 0011 | OP_NIL           |
+ 000026 | 0011 | OP_RETURN        |
 ==== bar ====
  offset | line | opcode           | constants
- 000000 | 0005 | OP_NIL           |
- 000001 | 0005 | OP_CONSTANT      | 200
- 000003 | 0005 | OP_SET_LOCAL     | 1
- 000005 | 0006 | OP_GET_UPVALUE   | 0
- 000007 | 0006 | OP_PRINT         |
- 000008 | 0007 | OP_GET_LOCAL     | 1
- 000010 | 0007 | OP_PRINT         |
- 000011 | 0008 | OP_POP           |
- 000012 | 0008 | OP_NIL           |
- 000013 | 0008 | OP_RETURN        |
-100
+ 000000 | 0006 | OP_NIL           |
+ 000001 | 0006 | OP_CONSTANT      | 300
+ 000003 | 0006 | OP_SET_LOCAL     | 1
+ 000005 | 0007 | OP_GET_UPVALUE   | 0
+ 000007 | 0007 | OP_PRINT         |
+ 000008 | 0008 | OP_GET_LOCAL     | 1
+ 000010 | 0008 | OP_PRINT         |
+ 000011 | 0009 | OP_POP           |
+ 000012 | 0009 | OP_NIL           |
+ 000013 | 0009 | OP_RETURN        |
 200
+300
 

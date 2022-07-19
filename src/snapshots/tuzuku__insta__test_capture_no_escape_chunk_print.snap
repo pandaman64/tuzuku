@@ -7,7 +7,7 @@ expression: "String::from_utf8_lossy(&chunk_print)"
  offset | line | opcode           | constants
  000000 | 0002 | OP_CONSTANT      | <function foo>
  000002 | 0002 | OP_SET_GLOBAL    | foo
- 000004 | 0012 | OP_GET_GLOBAL    | foo
- 000006 | 0012 | OP_CALL          | 0
- 000008 | 0012 | OP_POP           |
+ 000004 | 0013 | OP_GET_GLOBAL    | foo
+ 000006 | 0013 | OP_CALL          | 0
+ 000008 | 0013 | OP_POP           |
 

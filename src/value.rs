@@ -277,8 +277,8 @@ impl Continuation {
         let upvalues_len = usize::from(self.code(1));
         let upvalues: Box<[NonNull<Upvalue>]> = (0..upvalues_len)
             .map(|idx| {
-                let is_local = self.code(1 + 2 * idx) > 0;
-                let index = self.code(1 + 2 * idx + 1);
+                let is_local = self.code(2 + 2 * idx) > 0;
+                let index = self.code(2 + 2 * idx + 1);
                 let pointer = if is_local {
                     self.stack.get_local_ptr(index)
                 } else {
