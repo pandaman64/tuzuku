@@ -1,13 +1,17 @@
-use std::{cell::RefCell, ops::DerefMut, rc::Rc};
+use std::{ptr::NonNull, rc::Rc};
 
-use crate::{constant::Constant, opcode::Chunk};
+use crate::{allocator::LEAKING_ALLOCATOR, constant::Constant, opcode::Chunk};
 
 const STACK_SIZE: usize = 1024;
 
 #[derive(Clone)]
 pub(crate) struct Stack {
     /// The value stack.
-    values: Rc<[RefCell<Option<Value>>]>,
+    ///
+    /// # Invariant
+    /// values must be initialized and has STACK_SIZE valid elements indefinitely.
+    /// TODO: GC will destory and reclaim the stack once implemented.
+    values: NonNull<[Option<Value>]>,
     /// The index at the past one after the end of stack.
     sp: usize,
     /// The starting point of the current function in the stack.
@@ -17,10 +21,7 @@ pub(crate) struct Stack {
 impl Stack {
     fn empty() -> Self {
         Self {
-            values: [(); STACK_SIZE]
-                .map(|()| RefCell::new(None))
-                .as_slice()
-                .into(),
+            values: LEAKING_ALLOCATOR.alloc_array(None, STACK_SIZE),
             sp: 0,
             fp: 0,
         }
@@ -31,15 +32,25 @@ impl Stack {
         assert!(self.fp <= self.sp);
 
         #[cfg(debug_assertions)]
-        for (idx, value) in self.values.iter().enumerate() {
-            assert_eq!(idx < self.sp, value.borrow().is_some());
+        {
+            // SAFETY: self.values is initialized.
+            unsafe {
+                for idx in 0..self.values.len() {
+                    let value = self.values.get_unchecked_mut(idx);
+                    assert_eq!(idx < self.sp, value.as_ref().is_some())
+                }
+            }
         }
     }
 
     pub(crate) fn push(&mut self, value: Value) {
         self.check();
         // TODO: stack overflow
-        *self.values[self.sp].borrow_mut() = Some(value);
+        // SAFETY: self.check() ensures that self.sp points to inside the stack,
+        // so it's safe to dereference and assign to it.
+        unsafe {
+            *self.values.get_unchecked_mut(self.sp).as_mut() = Some(value);
+        }
         self.sp += 1;
     }
 
@@ -47,22 +58,37 @@ impl Stack {
         self.check();
         // TODO: negative overflow
         self.sp -= 1;
-        std::mem::replace(self.values[self.sp].borrow_mut().deref_mut(), None)
+        // SAFETY: self.check() ensures that self.sp points to inside the stack,
+        // so it's safe to dereference and assign to it.
+        unsafe { std::mem::replace(self.values.get_unchecked_mut(self.sp).as_mut(), None) }
     }
 
     fn replace_at(&mut self, index: usize, value: Value) -> Value {
         self.check();
         assert!(index < self.sp);
-        let mut place = self.values[index].borrow_mut();
-        std::mem::replace(place.deref_mut(), Some(value)).unwrap()
+        // SAFETY: self.check() ensures that self.sp points to inside the stack,
+        // and index is less than self.sp, so we can dereference at index.
+        unsafe {
+            let place = self.values.get_unchecked_mut(index).as_mut();
+            std::mem::replace(place, Some(value)).unwrap()
+        }
     }
 
     /// Reset sp and drop the values in the following slots.
     fn rewind_sp(&mut self, new_sp: usize) {
         assert!(new_sp < self.sp);
 
-        for place in self.values[new_sp..self.sp].iter() {
-            *place.borrow_mut() = None;
+        // SAFETY: self.check() ensures that self.sp points to inside the stack,
+        // and new_sp is less than self.sp, so we can dereference between them.
+        unsafe {
+            for place in self
+                .values
+                .get_unchecked_mut(new_sp..self.sp)
+                .as_mut()
+                .iter_mut()
+            {
+                *place = None;
+            }
         }
         self.sp = new_sp;
 
@@ -71,10 +97,19 @@ impl Stack {
 
     pub(crate) fn get_local(&self, offset: u8) -> Value {
         self.check();
-        self.values[self.fp + usize::from(offset)]
-            .clone()
-            .into_inner()
-            .unwrap()
+
+        let index = self.fp + usize::from(offset);
+        assert!(index < self.sp);
+
+        // SAFETY: self.check() ensures that self.sp points to inside the stack,
+        // and index is less than self.sp, so we can dereference at index.
+        unsafe {
+            self.values
+                .get_unchecked_mut(index)
+                .as_ref()
+                .clone()
+                .unwrap()
+        }
     }
 
     pub(crate) fn set_local(&mut self, offset: u8, value: Value) {

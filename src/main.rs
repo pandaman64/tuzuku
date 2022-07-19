@@ -1,9 +1,12 @@
+#![feature(slice_ptr_get, slice_ptr_len)]
+
 use std::io::{self, Write};
 
 use chumsky::prelude::Simple;
 
 use crate::{driver::Driver, opcode::Chunk, parser::LineMapper};
 
+mod allocator;
 mod ast;
 mod compiler;
 mod constant;
