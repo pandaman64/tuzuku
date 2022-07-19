@@ -203,6 +203,22 @@ impl<'parent> Compiler<'parent> {
             .push(Local::new(ident.into(), self.current_level));
     }
 
+    /// The function to handle local/global variable declarations.
+    ///
+    /// Call this function after emitting the initializer.
+    fn define_variable(&mut self, ident: &str, line: usize) {
+        if self.parent.is_some() {
+            // Treat the var declaration as local only if it's in a function.
+            // The slot for the local is already allocated on the stack.
+            self.push_local(ident);
+        } else {
+            // For global variables, we need to emit SET_GLOBAL.
+            let index = self.builder.push_constant(Constant::String(ident.into()));
+            self.builder.push_op(OpCode::SetGlobal, line);
+            self.builder.push_u8(index, line);
+        }
+    }
+
     fn emit_set(&mut self, ident: &str, line: usize) {
         match self.lookup(ident) {
             LookupResult::NotFound => {
@@ -274,27 +290,11 @@ impl<'parent> Compiler<'parent> {
                 }
             },
             AstBody::VarDecl { ident, initializer } => {
-                if self.parent.is_some() {
-                    // Treat the var declaration as local only if it's in a function.
-                    self.push_local(ident);
-
-                    // We allocate the slot for the local variable by pushing nil.
-                    self.builder.push_op(OpCode::Nil, start_line);
-
-                    // And then, emit SET_LOCAL if the declaration has an initializer.
-                    if let Some(initializer) = *initializer {
-                        self.push(initializer, mapper);
-                        self.emit_set(ident, start_line);
-                    }
-                } else {
-                    // If we declare a global variable, then we emit SET_GLOBAL without
-                    // allocating a slot for it.
-                    match *initializer {
-                        Some(initializer) => self.push(initializer, mapper),
-                        None => self.builder.push_op(OpCode::Nil, start_line),
-                    }
-                    self.emit_set(ident, start_line);
+                match *initializer {
+                    Some(initializer) => self.push(initializer, mapper),
+                    None => self.builder.push_op(OpCode::Nil, start_line),
                 }
+                self.define_variable(ident, start_line);
             }
             AstBody::FunDecl {
                 ident,
@@ -330,7 +330,7 @@ impl<'parent> Compiler<'parent> {
                     }
                 }
 
-                self.emit_set(ident, start_line);
+                self.define_variable(ident, start_line);
             }
             AstBody::Call { callee, arguments } => {
                 self.push(*callee, mapper);

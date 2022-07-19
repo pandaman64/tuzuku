@@ -156,7 +156,7 @@ impl<'stdout> Vm<'stdout> {
                 // TODO: implement properly
                 self.continuation.stack_mut().pop().unwrap();
                 self.continuation.advance(1);
-            },
+            }
             Some(OpCode::GetUpvalue) => {
                 let offset = self.continuation.code(1);
                 let value = self.continuation.get_upvalue(offset);
