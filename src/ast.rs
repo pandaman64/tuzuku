@@ -38,15 +38,20 @@ impl<'arena> Ast<'arena> {
 
 pub(crate) enum AstBody<'arena> {
     Root(Vec<Ast<'arena>>),
+    // Expressions
     Number(f64),
     String(String),
     Add(Ast<'arena>, Ast<'arena>),
     Sub(Ast<'arena>, Ast<'arena>),
     Mul(Ast<'arena>, Ast<'arena>),
     Div(Ast<'arena>, Ast<'arena>),
-    Print(Ast<'arena>),
     Assign(String, Ast<'arena>),
     Var(String),
+    Call {
+        callee: Ast<'arena>,
+        arguments: Vec<Ast<'arena>>,
+    },
+    // Declarations
     VarDecl {
         ident: String,
         initializer: Option<Ast<'arena>>,
@@ -56,11 +61,10 @@ pub(crate) enum AstBody<'arena> {
         parameters: Vec<String>,
         body: Vec<Ast<'arena>>,
     },
-    Call {
-        callee: Ast<'arena>,
-        arguments: Vec<Ast<'arena>>,
-    },
+    // Statements
     ExprStmt {
         expr: Ast<'arena>,
     },
+    Print(Ast<'arena>),
+    Return(Option<Ast<'arena>>),
 }

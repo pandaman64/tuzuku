@@ -63,6 +63,7 @@ fn generate_keyword_set() -> HashSet<&'static str> {
     keywords.insert("var");
     keywords.insert("fun");
     keywords.insert("print");
+    keywords.insert("return");
     keywords
 }
 
@@ -198,6 +199,15 @@ pub(crate) fn parser<'arena>(
             })
             .padded();
 
+        let return_stmt = keyword("return")
+            .ignore_then(expr.clone().or_not())
+            .then_ignore(just(';'))
+            .map_with_span(|expr, span: Range<usize>| Ast {
+                body: arena.alloc(AstBody::Return(expr)),
+                span: span.into(),
+            })
+            .padded();
+
         let var_decl = keyword("var")
             .padded()
             .ignore_then(allowed_ident().padded())
@@ -232,6 +242,7 @@ pub(crate) fn parser<'arena>(
         print_stmt
             .or(assign_stmt)
             .or(expr_stmt)
+            .or(return_stmt)
             .or(var_decl)
             .or(fun_decl)
     });

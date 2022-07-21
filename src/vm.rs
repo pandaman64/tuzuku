@@ -153,7 +153,10 @@ impl<'stdout> Vm<'stdout> {
                 self.continuation.perform_closure();
             }
             Some(OpCode::CloseUpvalue) => {
-                self.continuation.perform_close_upvalue();
+                // close the upvalue pointing to the top of the stack.
+                let new_sp = self.continuation.stack_mut().sp() - 1;
+                self.continuation.close_upvalue(new_sp);
+                self.continuation.advance(1);
             }
             Some(OpCode::GetUpvalue) => {
                 let offset = self.continuation.code(1);

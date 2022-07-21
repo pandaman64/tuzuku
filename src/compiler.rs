@@ -237,6 +237,14 @@ impl<'parent> Compiler<'parent> {
         }
     }
 
+    fn emit_return(&mut self, return_value: Option<Ast<'_>>, mapper: &LineMapper, line: usize) {
+        match return_value {
+            Some(return_value) => self.push(return_value, mapper),
+            None => self.builder.push_op(OpCode::Nil, line),
+        }
+        self.builder.push_op(OpCode::Return, line);
+    }
+
     fn push_binop(&mut self, opcode: OpCode, lhs: Ast<'_>, rhs: Ast<'_>, mapper: &LineMapper) {
         self.push(lhs, mapper);
         self.push(rhs, mapper);
@@ -305,10 +313,9 @@ impl<'parent> Compiler<'parent> {
                 for stmt in body.iter() {
                     fun_compiler.push(*stmt, mapper);
                 }
-                // TODO: handle explicit return
+                // TODO: explicit returnがあるときここは無駄
                 fun_compiler.end_scope(end_line);
-                fun_compiler.builder.push_op(OpCode::Nil, end_line);
-                fun_compiler.builder.push_op(OpCode::Return, end_line);
+                fun_compiler.emit_return(None, mapper, end_line);
                 let (function, upvalues) = fun_compiler.build(ident.into());
 
                 let fun_const_index = self.builder.push_constant(Constant::Function(function));
@@ -345,6 +352,7 @@ impl<'parent> Compiler<'parent> {
                 self.push(*expr, mapper);
                 self.builder.push_op(OpCode::Pop, start_line);
             }
+            AstBody::Return(expr) => self.emit_return(*expr, mapper, start_line),
         }
     }
 }

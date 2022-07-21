@@ -50,6 +50,10 @@ impl Stack {
         }
     }
 
+    pub(crate) fn sp(&self) -> usize {
+        self.sp
+    }
+
     pub(crate) fn push(&mut self, value: Value) {
         self.check();
         // TODO: stack overflow
@@ -79,27 +83,6 @@ impl Stack {
             let place = self.values.get_unchecked_mut(index).as_mut();
             std::mem::replace(place, Some(value)).unwrap()
         }
-    }
-
-    /// Reset sp and drop the values in the following slots.
-    fn rewind_sp(&mut self, new_sp: usize) {
-        assert!(new_sp < self.sp);
-
-        // SAFETY: self.check() ensures that self.sp points to inside the stack,
-        // and new_sp is less than self.sp, so we can dereference between them.
-        unsafe {
-            for place in self
-                .values
-                .get_unchecked_mut(new_sp..self.sp)
-                .as_mut()
-                .iter_mut()
-            {
-                *place = None;
-            }
-        }
-        self.sp = new_sp;
-
-        self.check();
     }
 
     fn get_local_ptr(&self, offset: u8) -> NonNull<Option<Value>> {
@@ -221,19 +204,19 @@ impl Continuation {
     }
 
     /// Run the return procedure.
-    ///
-    /// It first retrieves the continuation to return, and reset self to it.
-    /// Then, it adjusts the stack pointer and push the return value on top of the stack.
     pub(crate) fn perform_return(&mut self) {
         let fp = self.stack.fp;
 
         let return_value = self.stack.pop().unwrap();
         let continuation = self.stack.get_local(0);
         match continuation {
-            Value::Return(continuation) => {
+            Value::Return(mut continuation) => {
+                // Since the return continuation's sp is outdated, we fix it here.
+                // TODO: Isn't this assuming that the caller and the callee share the stack? Is this a valid assumption?
+                continuation.stack.sp = self.stack.sp;
+                continuation.close_upvalue(fp);
+                continuation.stack.push(return_value);
                 *self = continuation;
-                self.stack.rewind_sp(fp);
-                self.stack.push(return_value);
             }
             _ => todo!("The return continuation is not a continuation"),
         }
@@ -347,35 +330,45 @@ impl Continuation {
         self.advance(2 + 2 * upvalues_len);
     }
 
-    pub(crate) fn perform_close_upvalue(&mut self) {
-        let value = self.stack.pop().unwrap();
-        // SAFETY: the stack pointer is pointing to a valid slot
-        let pointer = unsafe { self.stack.values.get_unchecked_mut(self.stack.sp) };
+    pub(crate) fn close_upvalue(&mut self, new_sp: usize) {
+        self.stack.check();
+        assert!(new_sp < self.stack.sp);
 
-        if let Some(head) = self.open_upvalues_head {
-            let head = head.as_ptr();
+        for index in (new_sp..self.stack.sp).rev() {
+            // SAFETY: index is a valid stack slot, and the open_upvalues_head must point to a valid upvalue.
             unsafe {
-                match addr_of!((*head).pointer).read().cmp(&pointer) {
-                    std::cmp::Ordering::Less => {}
-                    std::cmp::Ordering::Equal => {
-                        let pointer_to_closed = addr_of_mut!((*head).closed);
-                        // write value to closed
-                        assert!(std::mem::replace(&mut *pointer_to_closed, Some(value)).is_none());
-                        // update pointer to point to its closed
-                        addr_of_mut!((*head).pointer)
-                            .write(NonNull::new_unchecked(pointer_to_closed));
-                        // unlink the upvalue and update head
-                        let next = std::mem::replace(&mut *addr_of_mut!((*head).next), None);
-                        self.open_upvalues_head = next;
-                    }
-                    std::cmp::Ordering::Greater => {
-                        unreachable!("open_upvalues_head must point to a valid stack slot.")
+                let mut pointer = self.stack.values.get_unchecked_mut(index);
+                let value = std::mem::replace(pointer.as_mut(), None).unwrap();
+
+                if let Some(head) = self.open_upvalues_head {
+                    let head = head.as_ptr();
+                    match addr_of!((*head).pointer).read().cmp(&pointer) {
+                        std::cmp::Ordering::Less => {}
+                        std::cmp::Ordering::Equal => {
+                            let pointer_to_closed = addr_of_mut!((*head).closed);
+                            // write value to closed
+                            assert!(
+                                std::mem::replace(&mut *pointer_to_closed, Some(value)).is_none()
+                            );
+                            // update pointer to point to its closed
+                            addr_of_mut!((*head).pointer)
+                                .write(NonNull::new_unchecked(pointer_to_closed));
+                            // unlink the upvalue and update head
+                            let next = std::mem::replace(&mut *addr_of_mut!((*head).next), None);
+                            self.open_upvalues_head = next;
+                        }
+                        std::cmp::Ordering::Greater => {
+                            unreachable!("open_upvalues_head must point to a valid stack slot.")
+                        }
                     }
                 }
             }
         }
 
-        self.advance(1);
+        // rewind the sp
+        self.stack.sp = new_sp;
+
+        self.stack.check();
     }
 }
 

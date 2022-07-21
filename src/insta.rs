@@ -142,6 +142,22 @@ fun main() {
 }
 
 main();
-"#
+"#,
+    );
+}
+
+#[test]
+fn test_return() {
+    run_test(
+        "test_return",
+        r#"
+fun foo() {
+    var foo = 1234;
+    print("foo");
+    return foo;
+}
+
+print(foo());
+"#,
     );
 }

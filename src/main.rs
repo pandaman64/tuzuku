@@ -34,28 +34,13 @@ fn print_errors(_: &str, errors: Vec<Simple<char>>, mapper: &LineMapper) {
 
 fn main() {
     let source = r#"
-fun main() {
-    var slot;
-
-    fun foo() {
-        print(slot);
-    }
-
-    fun bar() {
-        print(slot);
-    }
-
-    print(slot);
-    slot = 1;
-    foo();
-    bar();
-
-    slot = 2;
-    foo();
-    bar();
+fun foo() {
+    var foo = 1234;
+    print("foo");
+    return foo;
 }
 
-main();
+print(foo());
 "#
     .to_string();
     println!("source = {}", source);
