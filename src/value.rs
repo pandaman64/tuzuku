@@ -206,15 +206,17 @@ impl Continuation {
     /// Run the return procedure.
     pub(crate) fn perform_return(&mut self) {
         let fp = self.stack.fp;
-
         let return_value = self.stack.pop().unwrap();
         let continuation = self.stack.get_local(0);
+
+        // Drop the call frame for this function and close upvalues pointing to the inside of it.
+        self.close_upvalue(fp);
+
         match continuation {
             Value::Return(mut continuation) => {
                 // Since the return continuation's sp is outdated, we fix it here.
                 // TODO: Isn't this assuming that the caller and the callee share the stack? Is this a valid assumption?
                 continuation.stack.sp = self.stack.sp;
-                continuation.close_upvalue(fp);
                 continuation.stack.push(return_value);
                 *self = continuation;
             }

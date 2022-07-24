@@ -1,0 +1,16 @@
+---
+source: src/insta.rs
+assertion_line: 28
+expression: "String::from_utf8_lossy(&chunk_print)"
+---
+==== test_capture_initial_code ====
+ offset | line | opcode           | constants
+ 000000 | 0002 | OP_CONSTANT      | <function foo>
+ 000002 | 0002 | OP_SET_GLOBAL    | foo
+ 000004 | 0011 | OP_GET_GLOBAL    | foo
+ 000006 | 0011 | OP_CALL          | 0
+ 000008 | 0011 | OP_SET_GLOBAL    | cls
+ 000010 | 0012 | OP_GET_GLOBAL    | cls
+ 000012 | 0012 | OP_CALL          | 0
+ 000014 | 0012 | OP_PRINT         |
+

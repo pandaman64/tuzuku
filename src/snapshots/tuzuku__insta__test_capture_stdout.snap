@@ -1,0 +1,7 @@
+---
+source: src/insta.rs
+assertion_line: 58
+expression: "String::from_utf8_lossy(&handler.stdout)"
+---
+600
+

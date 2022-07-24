@@ -13,10 +13,18 @@ struct InstaCapturingHandler {
 }
 
 impl SideEffectHandler for InstaCapturingHandler {
-    fn compile_error(&mut self, file_name: &str, errors: Vec<Simple<char>>, _mapper: &LineMapper) -> io::Result<()> {
+    fn compile_error(
+        &mut self,
+        file_name: &str,
+        errors: Vec<Simple<char>>,
+        _mapper: &LineMapper,
+    ) -> io::Result<()> {
         let error_messages: Vec<String> = errors.iter().map(Simple::<char>::to_string).collect();
-    
-        insta::assert_yaml_snapshot!(format!("{}_{}_error_messages", self.test_name, file_name), error_messages);
+
+        insta::assert_yaml_snapshot!(
+            format!("{}_{}_error_messages", self.test_name, file_name),
+            error_messages
+        );
 
         Ok(())
     }
@@ -24,12 +32,12 @@ impl SideEffectHandler for InstaCapturingHandler {
     fn call_function(&mut self, function: &crate::value::Function) -> io::Result<()> {
         let mut chunk_print = vec![];
         let _ = function.chunk().write(function.name(), &mut chunk_print);
-    
+
         insta::assert_snapshot!(
             format!("{}_{}_chunk_print", self.test_name, function.name()),
             String::from_utf8_lossy(&chunk_print)
         );
-    
+
         Ok(())
     }
 
@@ -40,7 +48,10 @@ impl SideEffectHandler for InstaCapturingHandler {
 
 impl InstaCapturingHandler {
     fn new(test_name: &str) -> Self {
-        Self { test_name: test_name.into(), stdout: vec![] }
+        Self {
+            test_name: test_name.into(),
+            stdout: vec![],
+        }
     }
 }
 
@@ -175,6 +186,26 @@ fun foo() {
 }
 
 print(foo());
+"#,
+    );
+}
+
+#[test]
+fn test_capture() {
+    run_test(
+        "test_capture",
+        r#"
+fun foo() {
+    var local = 100;
+    fun bar() {
+        return local + 200;
+    }
+    local = 400;
+    return bar;
+}
+
+var cls = foo();
+print(cls());
 "#,
     );
 }
