@@ -5,42 +5,59 @@ use std::io::{self, Write};
 
 use chumsky::prelude::Simple;
 
-use crate::{driver::Driver, opcode::Chunk, parser::LineMapper};
+use crate::{driver::Driver, parser::LineMapper, side_effect::SideEffectHandler};
 
-fn assert_chunk_print(test_name: &str, chunk: &Chunk, _: &mut dyn Write) -> io::Result<()> {
-    let mut chunk_print = vec![];
-    let _ = chunk.write(test_name, &mut chunk_print);
-
-    insta::assert_snapshot!(
-        format!("{}_chunk_print", test_name),
-        String::from_utf8_lossy(&chunk_print)
-    );
-
-    Ok(())
+struct InstaCapturingHandler {
+    test_name: String,
+    stdout: Vec<u8>,
 }
 
-fn assert_error_messages(test_name: &str, errors: Vec<Simple<char>>, _: &LineMapper) {
-    let error_messages: Vec<String> = errors.iter().map(Simple::<char>::to_string).collect();
+impl SideEffectHandler for InstaCapturingHandler {
+    fn compile_error(&mut self, file_name: &str, errors: Vec<Simple<char>>, _mapper: &LineMapper) -> io::Result<()> {
+        let error_messages: Vec<String> = errors.iter().map(Simple::<char>::to_string).collect();
+    
+        insta::assert_yaml_snapshot!(format!("{}_{}_error_messages", self.test_name, file_name), error_messages);
 
-    insta::assert_yaml_snapshot!(format!("{}_error_messages", test_name), error_messages);
+        Ok(())
+    }
+
+    fn call_function(&mut self, function: &crate::value::Function) -> io::Result<()> {
+        let mut chunk_print = vec![];
+        let _ = function.chunk().write(function.name(), &mut chunk_print);
+    
+        insta::assert_snapshot!(
+            format!("{}_{}_chunk_print", self.test_name, function.name()),
+            String::from_utf8_lossy(&chunk_print)
+        );
+    
+        Ok(())
+    }
+
+    fn print(&mut self, value: &dyn std::fmt::Display) -> io::Result<()> {
+        writeln!(self.stdout, "{}", value)
+    }
+}
+
+impl InstaCapturingHandler {
+    fn new(test_name: &str) -> Self {
+        Self { test_name: test_name.into(), stdout: vec![] }
+    }
 }
 
 fn run_test(test_name: &str, source: &str) {
-    let mut stdout = vec![];
+    let mut handler = InstaCapturingHandler::new(test_name);
     let mut driver = Driver {
         file_name: test_name.into(),
         source: source.into(),
         run: true,
-        stdout: &mut stdout,
-        chunk_callback: assert_chunk_print,
-        error_callback: assert_error_messages,
+        handler: &mut handler,
     };
 
     driver.run();
 
     insta::assert_snapshot!(
         format!("{}_stdout", test_name),
-        String::from_utf8_lossy(&stdout)
+        String::from_utf8_lossy(&handler.stdout)
     );
 }
 

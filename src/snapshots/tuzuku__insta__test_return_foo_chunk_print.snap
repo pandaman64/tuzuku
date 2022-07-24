@@ -1,0 +1,16 @@
+---
+source: src/insta.rs
+assertion_line: 28
+expression: "String::from_utf8_lossy(&chunk_print)"
+---
+==== foo ====
+ offset | line | opcode           | constants
+ 000000 | 0003 | OP_CONSTANT      | 1234
+ 000002 | 0004 | OP_CONSTANT      | foo
+ 000004 | 0004 | OP_PRINT         |
+ 000005 | 0005 | OP_GET_LOCAL     | 1
+ 000007 | 0005 | OP_RETURN        |
+ 000008 | 0006 | OP_POP           |
+ 000009 | 0006 | OP_NIL           |
+ 000010 | 0006 | OP_RETURN        |
+

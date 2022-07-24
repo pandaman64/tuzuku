@@ -1,10 +1,10 @@
-use std::{collections::HashMap, io::Write};
+use std::collections::HashMap;
 
 use crate::{
     allocator::LEAKING_ALLOCATOR,
     constant::{self, Constant},
     opcode::OpCode,
-    value::{Closure, Continuation, Value},
+    value::{Closure, Continuation, Value, self}, side_effect::SideEffectHandler,
 };
 
 use num_traits::FromPrimitive;
@@ -14,26 +14,28 @@ struct Global {
     definitions: HashMap<String, Value>,
 }
 
-pub(crate) struct Vm<'stdout> {
+pub(crate) struct Vm<'handler> {
     /// The current continuation to run the rest of the program.
     continuation: Continuation,
     global: Global,
-    stdout: &'stdout mut (dyn Write + 'stdout),
+    handler: &'handler mut (dyn SideEffectHandler + 'handler),
 }
 
 impl<'stdout> Vm<'stdout> {
     pub(crate) fn initial(
         function: constant::Function,
-        stdout: &'stdout mut (dyn Write + 'stdout),
+        handler: &'stdout mut (dyn SideEffectHandler + 'stdout),
     ) -> Self {
-        // SAFETY: We pass a valid continuation object.
+        let function = value::Function::from(function);
+        handler.call_function(&function).unwrap();
+        // SAFETY: We pass a valid closure object.
         let continuation = unsafe {
-            Continuation::initial(LEAKING_ALLOCATOR.alloc(Closure::free(function.into())))
+            Continuation::initial(LEAKING_ALLOCATOR.alloc(Closure::free(function)))
         };
         Vm {
             continuation,
             global: Global::default(),
-            stdout,
+            handler,
         }
     }
 
@@ -59,13 +61,8 @@ impl<'stdout> Vm<'stdout> {
     fn call(&mut self, arguments_len: u8) {
         let callee = self.continuation.call(arguments_len);
         // TODO: the safety of this block relies on the validity of the callee in the stack.
-        unsafe {
-            let function = callee.as_ref().function();
-            function
-                .chunk()
-                .write(function.name(), self.stdout)
-                .unwrap();
-        }
+        let function = unsafe { callee.as_ref().function() };
+        self.handler.call_function(function).unwrap();
     }
 
     pub(crate) fn step(&mut self) {
@@ -90,7 +87,7 @@ impl<'stdout> Vm<'stdout> {
             }
             Some(OpCode::Print) => {
                 let value = self.continuation.stack_mut().pop().unwrap();
-                writeln!(self.stdout, "{}", value.display()).unwrap();
+                self.handler.print(&value.display()).unwrap();
                 self.continuation.advance(1);
             }
             Some(OpCode::Call) => {

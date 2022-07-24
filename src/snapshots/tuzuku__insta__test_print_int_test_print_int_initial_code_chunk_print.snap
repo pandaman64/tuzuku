@@ -1,0 +1,10 @@
+---
+source: src/insta.rs
+assertion_line: 28
+expression: "String::from_utf8_lossy(&chunk_print)"
+---
+==== test_print_int_initial_code ====
+ offset | line | opcode           | constants
+ 000000 | 0001 | OP_CONSTANT      | 42
+ 000002 | 0001 | OP_PRINT         |
+

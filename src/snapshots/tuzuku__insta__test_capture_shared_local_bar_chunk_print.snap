@@ -1,0 +1,12 @@
+---
+source: src/insta.rs
+assertion_line: 28
+expression: "String::from_utf8_lossy(&chunk_print)"
+---
+==== bar ====
+ offset | line | opcode           | constants
+ 000000 | 0010 | OP_GET_UPVALUE   | 0
+ 000002 | 0010 | OP_PRINT         |
+ 000003 | 0011 | OP_NIL           |
+ 000004 | 0011 | OP_RETURN        |
+

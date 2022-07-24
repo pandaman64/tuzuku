@@ -1,33 +1,8 @@
 ---
 source: src/insta.rs
-assertion_line: 41
-expression: "String::from_utf8_lossy(&stdout)"
+assertion_line: 58
+expression: "String::from_utf8_lossy(&handler.stdout)"
 ---
-==== foo ====
- offset | line | opcode           | constants
- 000000 | 0003 | OP_CONSTANT      | 100
- 000002 | 0004 | OP_CONSTANT      | 200
- 000004 | 0005 | OP_CONSTANT      | <function bar>
- 000006 | 0005 | OP_CLOSURE       | 1
-        |      |                  | 2 (local)
- 000010 | 0010 | OP_GET_LOCAL     | 3
- 000012 | 0010 | OP_CALL          | 0
- 000014 | 0010 | OP_POP           |
- 000015 | 0011 | OP_POP           |
- 000016 | 0011 | OP_CLOSE_UPVALUE |
- 000017 | 0011 | OP_POP           |
- 000018 | 0011 | OP_NIL           |
- 000019 | 0011 | OP_RETURN        |
-==== bar ====
- offset | line | opcode           | constants
- 000000 | 0006 | OP_CONSTANT      | 300
- 000002 | 0007 | OP_GET_UPVALUE   | 0
- 000004 | 0007 | OP_PRINT         |
- 000005 | 0008 | OP_GET_LOCAL     | 1
- 000007 | 0008 | OP_PRINT         |
- 000008 | 0009 | OP_POP           |
- 000009 | 0009 | OP_NIL           |
- 000010 | 0009 | OP_RETURN        |
 200
 300
 

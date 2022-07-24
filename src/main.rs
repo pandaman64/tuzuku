@@ -1,11 +1,9 @@
 #![feature(slice_ptr_get, slice_ptr_len)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use std::io::{self, Write};
+use std::io;
 
-use chumsky::prelude::Simple;
-
-use crate::{driver::Driver, opcode::Chunk, parser::LineMapper};
+use crate::{driver::Driver, side_effect::PrintAllHandler};
 
 mod allocator;
 mod ast;
@@ -15,22 +13,9 @@ mod driver;
 mod insta;
 mod opcode;
 mod parser;
+mod side_effect;
 mod value;
 mod vm;
-
-fn print_chunk(file_name: &str, chunk: &Chunk, writer: &mut dyn Write) -> io::Result<()> {
-    chunk.write(file_name, writer)
-}
-
-fn print_errors(_: &str, errors: Vec<Simple<char>>, mapper: &LineMapper) {
-    for error in errors.iter() {
-        eprintln!(
-            "error at line {}: {}",
-            mapper.find(error.span().start),
-            error
-        )
-    }
-}
 
 fn main() {
     let source = r#"
@@ -46,13 +31,16 @@ print(foo());
     println!("source = {}", source);
 
     let mut stdout = io::stdout().lock();
+    let mut stderr = io::stderr().lock();
+    let mut handler = PrintAllHandler {
+        stdout: &mut stdout,
+        stderr: &mut stderr,
+    };
     let mut driver = Driver {
         file_name: "inline source".into(),
         source,
         run: true,
-        stdout: &mut stdout,
-        chunk_callback: print_chunk,
-        error_callback: print_errors,
+        handler: &mut handler,
     };
     driver.run();
 }
