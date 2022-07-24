@@ -4,7 +4,8 @@ use crate::{
     allocator::LEAKING_ALLOCATOR,
     constant::{self, Constant},
     opcode::OpCode,
-    value::{Closure, Continuation, Value, self}, side_effect::SideEffectHandler,
+    side_effect::SideEffectHandler,
+    value::{self, Closure, Continuation, Value},
 };
 
 use num_traits::FromPrimitive;
@@ -29,9 +30,8 @@ impl<'stdout> Vm<'stdout> {
         let function = value::Function::from(function);
         handler.call_function(&function).unwrap();
         // SAFETY: We pass a valid closure object.
-        let continuation = unsafe {
-            Continuation::initial(LEAKING_ALLOCATOR.alloc(Closure::free(function)))
-        };
+        let continuation =
+            unsafe { Continuation::initial(LEAKING_ALLOCATOR.alloc(Closure::free(function))) };
         Vm {
             continuation,
             global: Global::default(),

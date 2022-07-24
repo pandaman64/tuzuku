@@ -20,12 +20,16 @@ mod vm;
 fn main() {
     let source = r#"
 fun foo() {
-    var foo = 1234;
-    print("foo");
-    return foo;
+    var local = 100;
+    fun bar() {
+        return local + 200;
+    }
+    local = 400;
+    return bar;
 }
 
-print(foo());
+var cls = foo();
+print(cls());
 "#
     .to_string();
     println!("source = {}", source);

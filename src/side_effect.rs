@@ -1,12 +1,20 @@
-use std::{fmt::Display, io::{Write, self}};
+use std::{
+    fmt::Display,
+    io::{self, Write},
+};
 
 use chumsky::prelude::Simple;
 
-use crate::{value::Function, parser::LineMapper};
+use crate::{parser::LineMapper, value::Function};
 
 /// The side effect handlers performed by VM.
 pub(crate) trait SideEffectHandler {
-    fn compile_error(&mut self, file_name: &str, errors: Vec<Simple<char>>, mapper: &LineMapper) -> io::Result<()>;
+    fn compile_error(
+        &mut self,
+        file_name: &str,
+        errors: Vec<Simple<char>>,
+        mapper: &LineMapper,
+    ) -> io::Result<()>;
 
     fn call_function(&mut self, function: &Function) -> io::Result<()>;
 
@@ -19,7 +27,12 @@ pub(crate) struct PrintAllHandler<'stdout, 'stderr> {
 }
 
 impl SideEffectHandler for PrintAllHandler<'_, '_> {
-    fn compile_error(&mut self, _file_name: &str, errors: Vec<Simple<char>>, mapper: &LineMapper) -> io::Result<()> {
+    fn compile_error(
+        &mut self,
+        _file_name: &str,
+        errors: Vec<Simple<char>>,
+        mapper: &LineMapper,
+    ) -> io::Result<()> {
         for error in errors.iter() {
             writeln!(
                 self.stderr,

@@ -4,7 +4,8 @@ use typed_arena::Arena;
 use crate::{
     compiler,
     parser::{self, LineMapper},
-    vm::Vm, side_effect::SideEffectHandler,
+    side_effect::SideEffectHandler,
+    vm::Vm,
 };
 
 pub(crate) struct Driver<'handler> {
@@ -21,7 +22,8 @@ impl Driver<'_> {
         let mapper = LineMapper::new(&self.source);
         match parser.parse(self.source.as_str()) {
             Ok(ast) => {
-                let compiled = compiler::compile(format!("{}_initial_code", self.file_name), ast, &mapper);
+                let compiled =
+                    compiler::compile(format!("{}_initial_code", self.file_name), ast, &mapper);
 
                 if self.run {
                     let mut vm = Vm::initial(compiled, self.handler);
@@ -30,7 +32,10 @@ impl Driver<'_> {
                     }
                 }
             }
-            Err(errors) => self.handler.compile_error(&self.file_name, errors, &mapper).unwrap(),
+            Err(errors) => self
+                .handler
+                .compile_error(&self.file_name, errors, &mapper)
+                .unwrap(),
         }
     }
 }
